@@ -1,0 +1,15 @@
+[package]
+name = "vjay-application"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+path = "vjay_application.rs"
+
+[dependencies]
+vjay-domain.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+

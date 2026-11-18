@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "nodes": [
+    {"id": 0,"kind": "Comment","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "02 / NEON ORBITS","comment": "輪の太さ: Line width\nにじみ: Glow\n速さ: Speed"}},
+    {"id": 1,"kind": "GLSL","parameters": [0.7,1,3,0.055,0.5,0.9],"settings": {"preview": true,"port_version": 0,"label": "NEON RINGS","shader": "\nvec3 palette(float t) {\n    return 0.5 + 0.5*cos(6.2831853*(t+vec3(0.0,0.33,0.67)));\n}\nmat2 turn(float a) {return mat2(cos(a),-sin(a),sin(a),cos(a));}\n\nvoid mainImage(out vec4 color,in vec2 pixel) {\n    vec2 p=(pixel*2.0-iResolution.xy)/iResolution.y;\n    p=turn(iTime*rate*0.09)*p/zoom;\n    float t=iTime*rate;\n    float radius=length(p), angle=atan(p.y,p.x);\n    float wave=radius*detail+sin(angle*3.0-t)*0.12-t*0.25;\n    float d=abs(fract(wave)-0.5);\n    float line=exp(-d*d/(width*width));\n    float arc=0.6+0.4*sin(angle*5.0+t+radius*4.0);\n    vec3 rgb=palette(hue+radius*0.09-angle*0.035)*line*arc;\n    rgb+=palette(hue+0.3)*exp(-d*18.0)*glow*0.3;\n    rgb*=exp(-radius*radius*0.12);\n    color=vec4(rgb,1.0);\n}\n","shader_uniforms": [{"name": "rate","min": 0,"max": 3,"default": 0.7},{"name": "zoom","min": 0.4,"max": 2,"default": 1},{"name": "detail","min": 1,"max": 8,"default": 3},{"name": "width","min": 0.015,"max": 0.2,"default": 0.055},{"name": "hue","min": 0,"max": 1,"default": 0.5},{"name": "glow","min": 0,"max": 2,"default": 0.9}]}},
+    {"id": 2,"kind": "Transform","parameters": [0,0,1,0],"settings": {"preview": false,"port_version": 0,"label": "ORBIT OFFSET"}},
+    {"id": 3,"kind": "LFO","parameters": [0.055,0.08,0,0],"settings": {"preview": false,"port_version": 0,"label": "HORIZONTAL"}},
+    {"id": 4,"kind": "LFO","parameters": [0.055,0.055,0,0.25],"settings": {"preview": false,"port_version": 0,"label": "VERTICAL"}},
+    {"id": 5,"kind": "Vignette","parameters": [0.42,0.55,0.65],"settings": {"preview": true,"port_version": 0,"label": "EDGE FALL-OFF"}},
+    {"id": 6,"kind": "Output","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "PROGRAM"}}
+  ],
+  "connections": [
+    {"from": 1,"output": 0,"to": 2,"input": 0},
+    {"from": 3,"output": 0,"to": 2,"input": 1},
+    {"from": 4,"output": 0,"to": 2,"input": 2},
+    {"from": 2,"output": 0,"to": 5,"input": 0},
+    {"from": 5,"output": 0,"to": 6,"input": 0}
+  ],
+  "positions": [
+    {"node": 0,"position": {"x": 24,"y": 0}},
+    {"node": 1,"position": {"x": 24,"y": 140}},
+    {"node": 2,"position": {"x": 260,"y": 140}},
+    {"node": 3,"position": {"x": 24,"y": 520}},
+    {"node": 4,"position": {"x": 260,"y": 520}},
+    {"node": 5,"position": {"x": 496,"y": 140}},
+    {"node": 6,"position": {"x": 732,"y": 140}}
+  ],
+  "controls": [
+    {"id": 0,"node": 1,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Speed","position": {"x": 12,"y": 12},"size": {"x": 160,"y": 112},"range": [0,2]},
+    {"id": 1,"node": 1,"parameter": 1,"widget": "Slider","target": "Parameter","label": "Zoom","position": {"x": 184,"y": 12},"size": {"x": 160,"y": 112},"range": [0.6,1.6]},
+    {"id": 2,"node": 1,"parameter": 2,"widget": "Slider","target": "Parameter","label": "Ring count","position": {"x": 12,"y": 132},"size": {"x": 160,"y": 112},"range": [1,7]},
+    {"id": 3,"node": 1,"parameter": 3,"widget": "Slider","target": "Parameter","label": "Line width","position": {"x": 184,"y": 132},"size": {"x": 160,"y": 112},"range": [0.02,0.14]},
+    {"id": 4,"node": 1,"parameter": 4,"widget": "Slider","target": "Parameter","label": "Palette","position": {"x": 12,"y": 252},"size": {"x": 160,"y": 112},"range": [0,1]},
+    {"id": 5,"node": 1,"parameter": 5,"widget": "Slider","target": "Parameter","label": "Glow","position": {"x": 184,"y": 252},"size": {"x": 160,"y": 112},"range": [0,1.5]}
+  ],
+  "assets": [
+  ],
+  "output": 6,
+  "workspace": {"library_width": 180, "inspector_width": 260, "top_height": 430, "preview_ratio": 0.3, "patch_zoom": 0.6}
+ }

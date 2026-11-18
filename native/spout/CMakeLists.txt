@@ -1,0 +1,21 @@
+cmake_minimum_required(VERSION 3.24)
+project(vjay_spout_bridge LANGUAGES CXX)
+if(NOT WIN32)
+  message(FATAL_ERROR "Spout requires Windows; use Syphon on macOS")
+endif()
+include(FetchContent)
+FetchContent_Declare(spout URL https://github.com/leadedge/Spout2/archive/6b68a5b4fdeca6130b851e5f9366467a844860e5.zip)
+FetchContent_GetProperties(spout)
+if(NOT spout_POPULATED)
+  FetchContent_Populate(spout)
+endif()
+set(GL "${spout_SOURCE_DIR}/SPOUTSDK/SpoutGL")
+set(DX "${spout_SOURCE_DIR}/SPOUTSDK/SpoutDirectX/SpoutDX")
+add_library(vjay_spout_bridge SHARED spout_bridge.cpp
+  "${DX}/SpoutDX.cpp" "${DX}/SpoutDX12/SpoutDX12.cpp"
+  "${GL}/SpoutCopy.cpp" "${GL}/SpoutDirectX.cpp" "${GL}/SpoutFrameCount.cpp"
+  "${GL}/SpoutSenderNames.cpp" "${GL}/SpoutSharedMemory.cpp" "${GL}/SpoutUtils.cpp")
+target_include_directories(vjay_spout_bridge PRIVATE "${GL}" "${DX}" "${DX}/SpoutDX12")
+target_compile_features(vjay_spout_bridge PRIVATE cxx_std_17)
+target_compile_definitions(vjay_spout_bridge PRIVATE SPOUT_BUILD_DLL NOMINMAX WIN32_LEAN_AND_MEAN)
+target_link_libraries(vjay_spout_bridge PRIVATE d3d11 d3d12 dxgi d3dcompiler opengl32 shlwapi winmm psapi version)

@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "nodes": [
+    {"id": 0,"kind": "Comment","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "04 / TUNNEL DRIVE","comment": "Speedを負にすると逆走。\nTwistで回転の幅を調整。"}},
+    {"id": 1,"kind": "Checkerboard","parameters": [18],"settings": {"preview": true,"port_version": 0,"label": "CHECKER TEXTURE"}},
+    {"id": 2,"kind": "Colorize","parameters": [0.78,0.9,1.15],"settings": {"preview": false,"port_version": 0,"label": "HOT GRID"}},
+    {"id": 3,"kind": "Tunnel3D","parameters": [0.45,2.8,0,0.28,1],"settings": {"preview": true,"port_version": 0,"label": "CYLINDRICAL TUNNEL"}},
+    {"id": 4,"kind": "Vignette","parameters": [0.48,0.5,0.8],"settings": {"preview": false,"port_version": 0,"label": "DARK EDGES"}},
+    {"id": 5,"kind": "Blur","parameters": [1.2],"settings": {"preview": false,"port_version": 0,"label": "SMOOTH EDGES"}},
+    {"id": 6,"kind": "LFO","parameters": [0.022,24,0,0],"settings": {"preview": false,"port_version": 0,"label": "TWIST"}},
+    {"id": 7,"kind": "Output","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "PROGRAM"}}
+  ],
+  "connections": [
+    {"from": 1,"output": 0,"to": 2,"input": 0},
+    {"from": 2,"output": 0,"to": 3,"input": 0},
+    {"from": 3,"output": 0,"to": 4,"input": 0},
+    {"from": 4,"output": 0,"to": 5,"input": 0},
+    {"from": 6,"output": 0,"to": 3,"input": 3},
+    {"from": 5,"output": 0,"to": 7,"input": 0}
+  ],
+  "positions": [
+    {"node": 0,"position": {"x": 24,"y": 0}},
+    {"node": 1,"position": {"x": 24,"y": 140}},
+    {"node": 2,"position": {"x": 260,"y": 140}},
+    {"node": 3,"position": {"x": 496,"y": 140}},
+    {"node": 4,"position": {"x": 732,"y": 140}},
+    {"node": 5,"position": {"x": 732,"y": 380}},
+    {"node": 6,"position": {"x": 260,"y": 480}},
+    {"node": 7,"position": {"x": 732,"y": 600}}
+  ],
+  "controls": [
+    {"id": 0,"node": 3,"parameter": 3,"widget": "Slider","target": "Parameter","label": "Travel speed","position": {"x": 12,"y": 12},"size": {"x": 160,"y": 112},"range": [-1,1]},
+    {"id": 1,"node": 3,"parameter": 1,"widget": "Slider","target": "Parameter","label": "Depth repeat","position": {"x": 184,"y": 12},"size": {"x": 160,"y": 112},"range": [0.5,5]},
+    {"id": 2,"node": 3,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Tunnel radius","position": {"x": 12,"y": 132},"size": {"x": 160,"y": 112},"range": [0.1,0.9]},
+    {"id": 3,"node": 6,"parameter": 1,"widget": "Slider","target": "Parameter","label": "Twist amount","position": {"x": 184,"y": 132},"size": {"x": 160,"y": 112},"range": [0,90]},
+    {"id": 4,"node": 1,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Tile density","position": {"x": 12,"y": 252},"size": {"x": 160,"y": 112},"range": [4,36]},
+    {"id": 5,"node": 2,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Hue","position": {"x": 184,"y": 252},"size": {"x": 160,"y": 112},"range": [0,1]}
+  ],
+  "assets": [
+  ],
+  "output": 7,
+  "workspace": {"library_width": 180, "inspector_width": 260, "top_height": 430, "preview_ratio": 0.3, "patch_zoom": 0.6}
+ }

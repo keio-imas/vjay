@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "nodes": [
+    {"id": 0,"kind": "Comment","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "01 / CHROMATIC FOLD","comment": "Patternを混ぜて万華鏡へ。\nHueで色、Glowで発光を調整。"}},
+    {"id": 1,"kind": "Pattern","parameters": [4.5,0.12,25],"settings": {"preview": false,"port_version": 0,"label": "STRIPES A"}},
+    {"id": 2,"kind": "Pattern","parameters": [9.8,-0.08,110],"settings": {"preview": false,"port_version": 0,"label": "STRIPES B"}},
+    {"id": 3,"kind": "Mix","parameters": [0.42],"settings": {"preview": false,"port_version": 0,"label": "PATTERN MIX"}},
+    {"id": 4,"kind": "Kaleidoscope","parameters": [7,20],"settings": {"preview": true,"port_version": 0,"label": "FOLD"}},
+    {"id": 5,"kind": "Colorize","parameters": [0.7,0.92,1.1],"settings": {"preview": false,"port_version": 0,"label": "VIOLET / RED"}},
+    {"id": 6,"kind": "Blur","parameters": [4],"settings": {"preview": false,"port_version": 0,"label": "SOFT GLOW"}},
+    {"id": 7,"kind": "Blend","parameters": [0.25,3],"settings": {"preview": true,"port_version": 0,"label": "SCREEN GLOW"}},
+    {"id": 8,"kind": "LFO","parameters": [0.025,28,0,0],"settings": {"preview": false,"port_version": 0,"label": "SLOW ROTATION"}},
+    {"id": 9,"kind": "Output","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "PROGRAM"}}
+  ],
+  "connections": [
+    {"from": 1,"output": 0,"to": 3,"input": 0},
+    {"from": 2,"output": 0,"to": 3,"input": 1},
+    {"from": 3,"output": 0,"to": 4,"input": 0},
+    {"from": 4,"output": 0,"to": 5,"input": 0},
+    {"from": 5,"output": 0,"to": 6,"input": 0},
+    {"from": 5,"output": 0,"to": 7,"input": 0},
+    {"from": 6,"output": 0,"to": 7,"input": 1},
+    {"from": 8,"output": 0,"to": 4,"input": 2},
+    {"from": 7,"output": 0,"to": 9,"input": 0}
+  ],
+  "positions": [
+    {"node": 0,"position": {"x": 24,"y": 0}},
+    {"node": 1,"position": {"x": 24,"y": 140}},
+    {"node": 2,"position": {"x": 24,"y": 320}},
+    {"node": 3,"position": {"x": 260,"y": 140}},
+    {"node": 4,"position": {"x": 260,"y": 320}},
+    {"node": 5,"position": {"x": 496,"y": 140}},
+    {"node": 6,"position": {"x": 496,"y": 380}},
+    {"node": 7,"position": {"x": 732,"y": 380}},
+    {"node": 8,"position": {"x": 24,"y": 510}},
+    {"node": 9,"position": {"x": 732,"y": 650}}
+  ],
+  "controls": [
+    {"id": 0,"node": 5,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Hue","position": {"x": 12,"y": 12},"size": {"x": 160,"y": 112},"range": [0,1]},
+    {"id": 1,"node": 5,"parameter": 2,"widget": "Slider","target": "Parameter","label": "Level","position": {"x": 184,"y": 12},"size": {"x": 160,"y": 112},"range": [0,1.5]},
+    {"id": 2,"node": 1,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Stripe density","position": {"x": 12,"y": 132},"size": {"x": 160,"y": 112},"range": [1,18]},
+    {"id": 3,"node": 4,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Segments","position": {"x": 184,"y": 132},"size": {"x": 160,"y": 112},"range": [1,12]},
+    {"id": 4,"node": 8,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Turn rate","position": {"x": 12,"y": 252},"size": {"x": 160,"y": 112},"range": [0.005,0.15]},
+    {"id": 5,"node": 7,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Glow","position": {"x": 184,"y": 252},"size": {"x": 160,"y": 112},"range": [0,0.6]}
+  ],
+  "assets": [
+  ],
+  "output": 9,
+  "workspace": {"library_width": 180, "inspector_width": 260, "top_height": 430, "preview_ratio": 0.3, "patch_zoom": 0.6}
+ }

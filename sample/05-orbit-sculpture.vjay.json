@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "nodes": [
+    {"id": 0,"kind": "Comment","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "05 / ORBIT SCULPTURE","comment": "回転は2つのLFO。\nShapeで形を変更。\nTextureで表面の模様を調整。"}},
+    {"id": 1,"kind": "GLSL","parameters": [0.4,7,0.055,0.48,1],"settings": {"preview": false,"port_version": 0,"label": "STAR FIELD","shader": "\nvec3 palette(float t) {\n    return 0.5 + 0.5*cos(6.2831853*(t+vec3(0.0,0.33,0.67)));\n}\nmat2 turn(float a) {return mat2(cos(a),-sin(a),sin(a),cos(a));}\n\nfloat hash(vec2 p){return fract(sin(dot(p,vec2(113.1,311.7)))*43758.5453);}\nvoid mainImage(out vec4 color,in vec2 pixel) {\n vec2 uv=pixel/iResolution.xy;\n vec2 p=(pixel*2.0-iResolution.xy)/iResolution.y;\n float t=iTime*rate;\n vec3 rgb=vec3(0.004,0.006,0.015);\n for(int k=0;k<3;k++) {\n  float layer=float(k)+1.0;\n  vec2 q=p*(density+float(k)*5.0)+vec2(t*layer*0.12,t*layer*0.05);\n  vec2 id=floor(q),cell=fract(q)-0.5;\n  vec2 shift=vec2(hash(id),hash(id+vec2(9.2)))-0.5;\n  float d=length(cell-shift*0.7);\n  float star=exp(-d*d/(size*size));\n  rgb+=palette(hue+hash(id)*0.25)*star*(0.5+0.5*sin(t+hash(id)*6.0))/layer;\n }\n rgb+=vec3(0.01,0.03,0.06)*exp(-length(p)*0.6);\n color=vec4(rgb*gain,1.0);\n}\n","shader_uniforms": [{"name": "rate","min": 0,"max": 3,"default": 0.4},{"name": "density","min": 3,"max": 20,"default": 7},{"name": "size","min": 0.015,"max": 0.15,"default": 0.055},{"name": "hue","min": 0,"max": 1,"default": 0.48},{"name": "gain","min": 0,"max": 2,"default": 1}]}},
+    {"id": 2,"kind": "Pattern","parameters": [7,0.15,70],"settings": {"preview": false,"port_version": 0,"label": "SURFACE STRIPES"}},
+    {"id": 3,"kind": "Colorize","parameters": [0.48,0.85,1.1],"settings": {"preview": false,"port_version": 0,"label": "SURFACE COLOR"}},
+    {"id": 4,"kind": "Primitive3D","parameters": [2,25,0,15,1.15,3,0.8,1.25,0.12,0.7,0.95,1],"settings": {"preview": true,"port_version": 0,"label": "TEXTURED TORUS"}},
+    {"id": 5,"kind": "LFO","parameters": [0.043,42,15,0],"settings": {"preview": false,"port_version": 0,"label": "PITCH"}},
+    {"id": 6,"kind": "LFO","parameters": [0.023,170,0,0],"settings": {"preview": false,"port_version": 0,"label": "YAW"}},
+    {"id": 7,"kind": "Composite","parameters": [0,0,1,1,0,1],"settings": {"preview": true,"port_version": 0,"label": "OBJECT OVER STARS"}},
+    {"id": 8,"kind": "Output","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "PROGRAM"}}
+  ],
+  "connections": [
+    {"from": 2,"output": 0,"to": 3,"input": 0},
+    {"from": 3,"output": 0,"to": 4,"input": 0},
+    {"from": 5,"output": 0,"to": 4,"input": 2},
+    {"from": 6,"output": 0,"to": 4,"input": 3},
+    {"from": 1,"output": 0,"to": 7,"input": 0},
+    {"from": 4,"output": 0,"to": 7,"input": 1},
+    {"from": 7,"output": 0,"to": 8,"input": 0}
+  ],
+  "positions": [
+    {"node": 0,"position": {"x": 24,"y": 0}},
+    {"node": 1,"position": {"x": 24,"y": 140}},
+    {"node": 2,"position": {"x": 24,"y": 500}},
+    {"node": 3,"position": {"x": 260,"y": 580}},
+    {"node": 4,"position": {"x": 260,"y": 140}},
+    {"node": 5,"position": {"x": 24,"y": 710}},
+    {"node": 6,"position": {"x": 260,"y": 710}},
+    {"node": 7,"position": {"x": 496,"y": 140}},
+    {"node": 8,"position": {"x": 732,"y": 140}}
+  ],
+  "controls": [
+    {"id": 0,"node": 4,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Shape","position": {"x": 12,"y": 12},"size": {"x": 160,"y": 112},"range": [0,3]},
+    {"id": 1,"node": 4,"parameter": 4,"widget": "Slider","target": "Parameter","label": "Object size","position": {"x": 184,"y": 12},"size": {"x": 160,"y": 112},"range": [0.6,1.7]},
+    {"id": 2,"node": 4,"parameter": 6,"widget": "Slider","target": "Parameter","label": "Texture","position": {"x": 12,"y": 132},"size": {"x": 160,"y": 112},"range": [0,1]},
+    {"id": 3,"node": 4,"parameter": 7,"widget": "Slider","target": "Parameter","label": "Light","position": {"x": 184,"y": 132},"size": {"x": 160,"y": 112},"range": [0.3,1.8]},
+    {"id": 4,"node": 6,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Orbit rate","position": {"x": 12,"y": 252},"size": {"x": 160,"y": 112},"range": [0.005,0.12]},
+    {"id": 5,"node": 3,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Surface hue","position": {"x": 184,"y": 252},"size": {"x": 160,"y": 112},"range": [0,1]}
+  ],
+  "assets": [
+  ],
+  "output": 8,
+  "workspace": {"library_width": 180, "inspector_width": 260, "top_height": 430, "preview_ratio": 0.3, "patch_zoom": 0.6}
+ }

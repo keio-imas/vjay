@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "nodes": [
+    {"id": 0,"kind": "Comment","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "03 / LIQUID CONTOURS","comment": "Warp: 曲がりの強さ\nContours: 帯の数\nPalette: 色"}},
+    {"id": 1,"kind": "GLSL","parameters": [0.55,1.7,3.8,3.5,0.18,0.25],"settings": {"preview": true,"port_version": 0,"label": "DOMAIN WARP","shader": "\nvec3 palette(float t) {\n    return 0.5 + 0.5*cos(6.2831853*(t+vec3(0.0,0.33,0.67)));\n}\nmat2 turn(float a) {return mat2(cos(a),-sin(a),sin(a),cos(a));}\n\nfloat hash2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}\nfloat noise2(vec2 p) {\n vec2 a=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);\n return mix(mix(hash2(a),hash2(a+vec2(1,0)),f.x),mix(hash2(a+vec2(0,1)),hash2(a+vec2(1,1)),f.x),f.y);\n}\nfloat fbm(vec2 p) {\n float v=0.0,a=0.5;\n for(int k=0;k<5;k++){v+=a*noise2(p);p=turn(0.6)*p*2.02+vec2(1.7,2.3);a*=0.5;}\n return v;\n}\nvoid mainImage(out vec4 color,in vec2 pixel) {\n vec2 p=(pixel*2.0-iResolution.xy)/iResolution.y*scale;\n float t=iTime*rate;\n vec2 q=vec2(fbm(p+vec2(0,t*0.12)),fbm(p+vec2(4.2,-t*0.09)));\n float f=fbm(p+warp*q+vec2(t*0.08,-t*0.06));\n float bands=0.5+0.5*sin(f*detail*6.2831853+t*0.15);\n vec3 dark=vec3(0.005,0.015,0.025);\n vec3 rgb=mix(dark,palette(f*0.7+hue),pow(bands,1.4));\n float edge=pow(1.0-abs(bands*2.0-1.0),10.0);\n color=vec4(rgb+edge*shine*vec3(0.4,0.7,0.8),1.0);\n}\n","shader_uniforms": [{"name": "rate","min": 0,"max": 3,"default": 0.55},{"name": "scale","min": 0.5,"max": 4,"default": 1.7},{"name": "warp","min": 0,"max": 8,"default": 3.8},{"name": "detail","min": 1,"max": 8,"default": 3.5},{"name": "hue","min": 0,"max": 1,"default": 0.18},{"name": "shine","min": 0,"max": 1,"default": 0.25}]}},
+    {"id": 2,"kind": "Vignette","parameters": [0.5,0.5,0.55],"settings": {"preview": true,"port_version": 0,"label": "FRAME"}},
+    {"id": 3,"kind": "Output","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "PROGRAM"}}
+  ],
+  "connections": [
+    {"from": 1,"output": 0,"to": 2,"input": 0},
+    {"from": 2,"output": 0,"to": 3,"input": 0}
+  ],
+  "positions": [
+    {"node": 0,"position": {"x": 24,"y": 0}},
+    {"node": 1,"position": {"x": 24,"y": 140}},
+    {"node": 2,"position": {"x": 260,"y": 140}},
+    {"node": 3,"position": {"x": 496,"y": 140}}
+  ],
+  "controls": [
+    {"id": 0,"node": 1,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Flow speed","position": {"x": 12,"y": 12},"size": {"x": 160,"y": 112},"range": [0,2]},
+    {"id": 1,"node": 1,"parameter": 1,"widget": "Slider","target": "Parameter","label": "Scale","position": {"x": 184,"y": 12},"size": {"x": 160,"y": 112},"range": [0.7,3]},
+    {"id": 2,"node": 1,"parameter": 2,"widget": "Slider","target": "Parameter","label": "Warp","position": {"x": 12,"y": 132},"size": {"x": 160,"y": 112},"range": [0,6]},
+    {"id": 3,"node": 1,"parameter": 3,"widget": "Slider","target": "Parameter","label": "Contours","position": {"x": 184,"y": 132},"size": {"x": 160,"y": 112},"range": [1,7]},
+    {"id": 4,"node": 1,"parameter": 4,"widget": "Slider","target": "Parameter","label": "Palette","position": {"x": 12,"y": 252},"size": {"x": 160,"y": 112},"range": [0,1]},
+    {"id": 5,"node": 1,"parameter": 5,"widget": "Slider","target": "Parameter","label": "Highlights","position": {"x": 184,"y": 252},"size": {"x": 160,"y": 112},"range": [0,0.7]}
+  ],
+  "assets": [
+  ],
+  "output": 3,
+  "workspace": {"library_width": 180, "inspector_width": 260, "top_height": 430, "preview_ratio": 0.3, "patch_zoom": 0.6}
+ }

@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "nodes": [
+    {"id": 0,"kind": "Comment","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "06 / LIVE TYPE","comment": "EDIT TITLEで本文を編集。\nPUNCH / Spaceで文字を拡大。\nReleaseで戻る時間を調整。"}},
+    {"id": 1,"kind": "GLSL","parameters": [0.65,1,0.095,0.025,0.8,0.7],"settings": {"preview": false,"port_version": 0,"label": "RIBBON BACKGROUND","shader": "\nvec3 palette(float t) {\n    return 0.5 + 0.5*cos(6.2831853*(t+vec3(0.0,0.33,0.67)));\n}\nmat2 turn(float a) {return mat2(cos(a),-sin(a),sin(a),cos(a));}\n\nvoid mainImage(out vec4 color,in vec2 pixel) {\n vec2 p=(pixel*2.0-iResolution.xy)/iResolution.y/zoom;\n float t=iTime*rate;\n vec3 rgb=vec3(0.006,0.008,0.025);\n for(int k=0;k<9;k++) {\n  float f=float(k);\n  float y=sin(p.x*1.7+t*0.6+f*0.35)*0.38+sin(p.x*0.75-t*0.24+f)*0.18+(f-4.0)*spacing;\n  float d=abs(p.y-y);\n  vec3 ink=palette(hue+f*0.065+p.x*0.05);\n  rgb+=ink*(exp(-d*d/(width*width))*0.7+exp(-d*16.0)*glow*0.14);\n }\n color=vec4(rgb,1.0);\n}\n","shader_uniforms": [{"name": "rate","min": 0,"max": 3,"default": 0.65},{"name": "zoom","min": 0.4,"max": 2,"default": 1},{"name": "spacing","min": 0.04,"max": 0.2,"default": 0.095},{"name": "width","min": 0.008,"max": 0.08,"default": 0.025},{"name": "hue","min": 0,"max": 1,"default": 0.8},{"name": "glow","min": 0,"max": 2,"default": 0.7}]}},
+    {"id": 2,"kind": "TextValue","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "EDIT TITLE","properties": {"content.text": "ライブ / LIVE"}}},
+    {"id": 3,"kind": "Text","parameters": [1,1,1,1,124,6,0,1],"settings": {"preview": true,"port_version": 2,"label": "TITLE","properties": {"content.text": "LIVE","font.family": "sans-serif"}}},
+    {"id": 4,"kind": "Button","parameters": [0],"settings": {"preview": false,"port_version": 0,"label": "PUNCH"}},
+    {"id": 5,"kind": "Keyboard","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "SPACE","key": "space"}},
+    {"id": 6,"kind": "LogicOr","parameters": [0,0],"settings": {"preview": false,"port_version": 0,"label": "BUTTON OR SPACE"}},
+    {"id": 7,"kind": "Envelope","parameters": [0.001,0.5],"settings": {"preview": false,"port_version": 0,"label": "PUNCH ENVELOPE"}},
+    {"id": 8,"kind": "MapRange","parameters": [0,0,1,1,1.12],"settings": {"preview": false,"port_version": 0,"label": "GPU SCALE"}},
+    {"id": 9,"kind": "Composite","parameters": [0,0,1,1,0,1],"settings": {"preview": true,"port_version": 0,"label": "TITLE OVER RIBBONS"}},
+    {"id": 10,"kind": "Output","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "PROGRAM"}}
+  ],
+  "connections": [
+    {"from": 2,"output": 0,"to": 3,"input": 0},
+    {"from": 4,"output": 1,"to": 6,"input": 0},
+    {"from": 5,"output": 0,"to": 6,"input": 1},
+    {"from": 6,"output": 0,"to": 7,"input": 0},
+    {"from": 7,"output": 0,"to": 8,"input": 0},
+    {"from": 1,"output": 0,"to": 9,"input": 0},
+    {"from": 3,"output": 0,"to": 9,"input": 1},
+    {"from": 8,"output": 0,"to": 9,"input": 4},
+    {"from": 8,"output": 0,"to": 9,"input": 5},
+    {"from": 9,"output": 0,"to": 10,"input": 0}
+  ],
+  "positions": [
+    {"node": 0,"position": {"x": 24,"y": 0}},
+    {"node": 1,"position": {"x": 24,"y": 140}},
+    {"node": 2,"position": {"x": 24,"y": 500}},
+    {"node": 3,"position": {"x": 260,"y": 140}},
+    {"node": 4,"position": {"x": 24,"y": 640}},
+    {"node": 5,"position": {"x": 24,"y": 760}},
+    {"node": 6,"position": {"x": 260,"y": 620}},
+    {"node": 7,"position": {"x": 260,"y": 780}},
+    {"node": 8,"position": {"x": 496,"y": 650}},
+    {"node": 9,"position": {"x": 496,"y": 140}},
+    {"node": 10,"position": {"x": 732,"y": 140}}
+  ],
+  "controls": [
+    {"id": 0,"node": 4,"parameter": 0,"widget": "Button","target": "Parameter","label": "PUNCH","position": {"x": 12,"y": 12},"size": {"x": 160,"y": 112},"range": null},
+    {"id": 1,"node": 7,"parameter": 1,"widget": "Slider","target": "Parameter","label": "Release seconds","position": {"x": 184,"y": 12},"size": {"x": 160,"y": 112},"range": [0.1,1.5]},
+    {"id": 2,"node": 3,"parameter": 4,"widget": "Slider","target": "Parameter","label": "Font size","position": {"x": 12,"y": 132},"size": {"x": 160,"y": 112},"range": [72,180]},
+    {"id": 3,"node": 3,"parameter": 5,"widget": "Number","target": "Parameter","label": "Font weight","position": {"x": 184,"y": 132},"size": {"x": 160,"y": 112},"range": [0,8]},
+    {"id": 4,"node": 1,"parameter": 4,"widget": "Slider","target": "Parameter","label": "Background hue","position": {"x": 12,"y": 252},"size": {"x": 160,"y": 112},"range": [0,1]},
+    {"id": 5,"node": 1,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Ribbon speed","position": {"x": 184,"y": 252},"size": {"x": 160,"y": 112},"range": [0,2]}
+  ],
+  "assets": [
+  ],
+  "output": 10,
+  "workspace": {"library_width": 180, "inspector_width": 260, "top_height": 430, "preview_ratio": 0.3, "patch_zoom": 0.6}
+ }

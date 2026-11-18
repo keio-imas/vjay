@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "nodes": [
+    {"id": 0,"kind": "Comment","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "09 / HALFTONE PRINT","comment": "Dots: 点の密度\nMix: 波形の切り替え\nTilt: 傾きの幅"}},
+    {"id": 1,"kind": "GLSL","parameters": [0.5,1.8,0.45,52,1],"settings": {"preview": true,"port_version": 0,"label": "TWO-INK HALFTONE","shader": "\nvec3 printColor(float value) {\n vec3 paper=vec3(0.95,0.88,0.73),ink=vec3(0.10,0.14,0.23);\n vec3 red=vec3(0.96,0.24,0.13);\n return mix(mix(ink,red,smoothstep(0.2,0.65,value)),paper,smoothstep(0.65,0.95,value));\n}\nvoid mainImage(out vec4 color,in vec2 pixel) {\n vec2 uv=pixel/iResolution.xy;\n vec2 p=(pixel*2.0-iResolution.xy)/iResolution.y;\n float t=iTime*rate;\n float field=0.5+0.5*sin(p.x*3.0+sin(p.y*3.0+t)*warp+t*0.3);\n float wave=0.5+0.5*cos(length(p-vec2(sin(t*0.2)*0.4,0))*8.0-t);\n float v=mix(field,wave,mixAmount);\n vec2 cell=fract(uv*vec2(iResolution.x/iResolution.y,1.0)*dots)-0.5;\n float dotShape=1.0-smoothstep(0.46*(0.18+v),0.46*(0.18+v)+0.035,length(cell));\n vec3 base=printColor(v);\n color=vec4(mix(vec3(0.96,0.90,0.78),base,dotShape*strength),1.0);\n}\n","shader_uniforms": [{"name": "rate","min": 0,"max": 3,"default": 0.5},{"name": "warp","min": 0,"max": 5,"default": 1.8},{"name": "mixAmount","min": 0,"max": 1,"default": 0.45},{"name": "dots","min": 15,"max": 130,"default": 52},{"name": "strength","min": 0,"max": 1,"default": 1}]}},
+    {"id": 2,"kind": "Transform3D","parameters": [0,0,0,-9,0,-4,0.88,60],"settings": {"preview": false,"port_version": 0,"label": "PERSPECTIVE PAPER"}},
+    {"id": 3,"kind": "Solid","parameters": [0.95,0.88,0.73],"settings": {"preview": false,"port_version": 0,"label": "PAPER"}},
+    {"id": 4,"kind": "LFO","parameters": [0.03,11,0,0],"settings": {"preview": false,"port_version": 0,"label": "GENTLE TILT"}},
+    {"id": 5,"kind": "Composite","parameters": [0,0,1,1,0,1],"settings": {"preview": true,"port_version": 0,"label": "PRINT ON PAPER"}},
+    {"id": 6,"kind": "Output","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "PROGRAM"}}
+  ],
+  "connections": [
+    {"from": 1,"output": 0,"to": 2,"input": 0},
+    {"from": 4,"output": 0,"to": 2,"input": 4},
+    {"from": 3,"output": 0,"to": 5,"input": 0},
+    {"from": 2,"output": 0,"to": 5,"input": 1},
+    {"from": 5,"output": 0,"to": 6,"input": 0}
+  ],
+  "positions": [
+    {"node": 0,"position": {"x": 24,"y": 0}},
+    {"node": 1,"position": {"x": 24,"y": 140}},
+    {"node": 2,"position": {"x": 260,"y": 140}},
+    {"node": 3,"position": {"x": 260,"y": 550}},
+    {"node": 4,"position": {"x": 24,"y": 520}},
+    {"node": 5,"position": {"x": 496,"y": 140}},
+    {"node": 6,"position": {"x": 732,"y": 140}}
+  ],
+  "controls": [
+    {"id": 0,"node": 1,"parameter": 3,"widget": "Slider","target": "Parameter","label": "Dot density","position": {"x": 12,"y": 12},"size": {"x": 160,"y": 112},"range": [20,100]},
+    {"id": 1,"node": 1,"parameter": 2,"widget": "Slider","target": "Parameter","label": "Wave mix","position": {"x": 184,"y": 12},"size": {"x": 160,"y": 112},"range": [0,1]},
+    {"id": 2,"node": 1,"parameter": 1,"widget": "Slider","target": "Parameter","label": "Warp","position": {"x": 12,"y": 132},"size": {"x": 160,"y": 112},"range": [0,4]},
+    {"id": 3,"node": 1,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Flow speed","position": {"x": 184,"y": 132},"size": {"x": 160,"y": 112},"range": [0,2]},
+    {"id": 4,"node": 4,"parameter": 1,"widget": "Slider","target": "Parameter","label": "Tilt degrees","position": {"x": 12,"y": 252},"size": {"x": 160,"y": 112},"range": [0,24]},
+    {"id": 5,"node": 1,"parameter": 4,"widget": "Slider","target": "Parameter","label": "Ink amount","position": {"x": 184,"y": 252},"size": {"x": 160,"y": 112},"range": [0.2,1]}
+  ],
+  "assets": [
+  ],
+  "output": 6,
+  "workspace": {"library_width": 180, "inspector_width": 260, "top_height": 430, "preview_ratio": 0.3, "patch_zoom": 0.6}
+ }

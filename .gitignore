@@ -1,0 +1,31 @@
+/target/
+/vjay-project.json
+*.ppm
+/.venv-web/
+
+/.dependencies/
+
+# macOS metadata
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100/
+.Trashes/
+.fseventsd/
+.TemporaryItems/
+.VolumeIcon.icns
+.apdisk
+
+# Windows metadata and recycle bins
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# Linux desktop trash and directory metadata
+.Trash-*/
+.directory
+.nfs*

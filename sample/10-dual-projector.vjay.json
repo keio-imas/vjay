@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "nodes": [
+    {"id": 0,"kind": "Comment","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "10 / DUAL PROJECTOR","comment": "A / BのOutputを順に選択し、\nOpen outputで2つ開きます。"}},
+    {"id": 1,"kind": "GLSL","parameters": [0.55,1.7,3.8,3.5,0.18,0.25],"settings": {"preview": true,"port_version": 0,"label": "SHARED LIQUID","shader": "vec3 palette(float t){return 0.5+0.5*cos(6.2831853*(t+vec3(0.0,0.33,0.67)));}\nvoid mainImage(out vec4 color,in vec2 pixel) {\n // Integer spatial frequencies make both texture edges join in the tunnel.\n vec2 p=pixel/iResolution.xy*6.2831853*floor(scale+0.5);\n float t=iTime*rate;\n vec2 q=vec2(sin(p.x+cos(p.y+t*0.13)),cos(p.y+sin(p.x-t*0.17)));\n float f=sin(p.x*2.0+warp*q.y+t*0.12)+cos(p.y*2.0+warp*q.x-t*0.09);\n float band=0.5+0.5*sin(f*detail+t*0.2);\n vec3 rgb=palette(hue+band*0.45)*(0.08+0.92*pow(band,1.7));\n rgb+=pow(1.0-abs(band*2.0-1.0),14.0)*shine*vec3(0.4,0.7,0.8);\n color=vec4(rgb,1.0);\n}\n","shader_uniforms": [{"name": "rate","min": 0,"max": 3,"default": 0.55},{"name": "scale","min": 0.5,"max": 4,"default": 1.7},{"name": "warp","min": 0,"max": 8,"default": 3.8},{"name": "detail","min": 1,"max": 8,"default": 3.5},{"name": "hue","min": 0,"max": 1,"default": 0.18},{"name": "shine","min": 0,"max": 1,"default": 0.25}]}},
+    {"id": 2,"kind": "Kaleidoscope","parameters": [6,15],"settings": {"preview": true,"port_version": 0,"label": "A / FOLD"}},
+    {"id": 3,"kind": "Grade","parameters": [0,1.15,1.1,55],"settings": {"preview": false,"port_version": 0,"label": "A / COOL PALETTE"}},
+    {"id": 4,"kind": "Output","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "PROJECTOR A"}},
+    {"id": 5,"kind": "Tunnel3D","parameters": [0.5,1.7,-20,0.2,1],"settings": {"preview": true,"port_version": 0,"label": "B / DEPTH"}},
+    {"id": 6,"kind": "Colorize","parameters": [0.78,0.95,1.1],"settings": {"preview": false,"port_version": 0,"label": "B / WARM PALETTE"}},
+    {"id": 7,"kind": "Output","parameters": [],"settings": {"preview": false,"port_version": 0,"label": "PROJECTOR B"}}
+  ],
+  "connections": [
+    {"from": 1,"output": 0,"to": 2,"input": 0},
+    {"from": 2,"output": 0,"to": 3,"input": 0},
+    {"from": 3,"output": 0,"to": 4,"input": 0},
+    {"from": 1,"output": 0,"to": 5,"input": 0},
+    {"from": 5,"output": 0,"to": 6,"input": 0},
+    {"from": 6,"output": 0,"to": 7,"input": 0}
+  ],
+  "positions": [
+    {"node": 0,"position": {"x": 24,"y": 0}},
+    {"node": 1,"position": {"x": 24,"y": 140}},
+    {"node": 2,"position": {"x": 260,"y": 140}},
+    {"node": 3,"position": {"x": 496,"y": 140}},
+    {"node": 4,"position": {"x": 732,"y": 140}},
+    {"node": 5,"position": {"x": 260,"y": 480}},
+    {"node": 6,"position": {"x": 496,"y": 480}},
+    {"node": 7,"position": {"x": 732,"y": 480}}
+  ],
+  "controls": [
+    {"id": 0,"node": 1,"parameter": 0,"widget": "Slider","target": "Parameter","label": "Shared speed","position": {"x": 12,"y": 12},"size": {"x": 160,"y": 112},"range": [0,2]},
+    {"id": 1,"node": 1,"parameter": 2,"widget": "Slider","target": "Parameter","label": "Shared warp","position": {"x": 184,"y": 12},"size": {"x": 160,"y": 112},"range": [0,6]},
+    {"id": 2,"node": 2,"parameter": 0,"widget": "Slider","target": "Parameter","label": "A / Segments","position": {"x": 12,"y": 132},"size": {"x": 160,"y": 112},"range": [1,12]},
+    {"id": 3,"node": 2,"parameter": 1,"widget": "Knob","target": "Parameter","label": "A / Rotation","position": {"x": 184,"y": 132},"size": {"x": 160,"y": 112},"range": [-180,180]},
+    {"id": 4,"node": 5,"parameter": 3,"widget": "Slider","target": "Parameter","label": "B / Travel","position": {"x": 12,"y": 252},"size": {"x": 160,"y": 112},"range": [-1,1]},
+    {"id": 5,"node": 6,"parameter": 0,"widget": "Slider","target": "Parameter","label": "B / Hue","position": {"x": 184,"y": 252},"size": {"x": 160,"y": 112},"range": [0,1]}
+  ],
+  "assets": [
+  ],
+  "output": 4,
+  "workspace": {"library_width": 180, "inspector_width": 260, "top_height": 430, "preview_ratio": 0.3, "patch_zoom": 0.6}
+ }

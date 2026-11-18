@@ -1,0 +1,54 @@
+[package]
+name = "vjay-infrastructure"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+path = "vjay_infrastructure.rs"
+
+[dependencies]
+image = {version="0.25", default-features=false, features=["png","jpeg","webp","gif","bmp","tiff"]}
+vjay-domain.workspace = true
+vjay-application.workspace = true
+serde_json.workspace = true
+gpui.workspace = true
+raw-window-handle.workspace = true
+wgpu.workspace = true
+bytemuck.workspace = true
+pollster.workspace = true
+naga.workspace = true
+cpal.workspace = true
+midir.workspace = true
+rosc.workspace = true
+rtrb.workspace = true
+rusty_link = "0.4.9"
+rusqlite = { version = "0.43.0", features = ["bundled-sqlcipher-vendored-openssl"] }
+blowfish = "0.9.1"
+base64 = "0.22.1"
+cosmic-text = "0.14.2"
+url = "2"
+tempfile = "3"
+libc = "0.2"
+libloading = "0.8"
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-metal = {version="0.3",features=["MTLDevice","MTLEvent"],default-features=false}
+block2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSView"] }
+objc2-foundation = "0.3"
+objc2-quartz-core = { version = "0.3", features = ["CAMetalLayer", "CAShapeLayer"] }
+
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2-core-graphics]
+version="0.3"
+default-features=false
+features=["std","CGPath","CGAffineTransform","CGGeometry"]
+
+[target.'cfg(windows)'.dependencies]
+windows = {version="0.62",features=["Win32_Graphics_Direct3D12"],default-features=false}
