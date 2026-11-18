@@ -2,6 +2,9 @@
 
 A node-based VJ application built with Rust, GPUI, and WebGPU through wgpu.
 Create visual patches, build custom performance controls, and route multiple video outputs.
+
+![VJAY editor with a four-source visual patch, live node previews, and custom performance controls](docs/images/vjay-studio.png)
+
 See [docs](docs/INDEX.md) for architecture, usage, and sample projects.
 
 ## Build
