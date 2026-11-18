@@ -25,6 +25,7 @@ fn main() -> ExitCode {
     }
 }
 
+// the main function (global entry-point) is the dirtiest job, tasked with recognizing all dependencies and injecting them into each component.
 fn run() -> PortResult<()> {
     let Some(args) = args::Args::parse()? else {
         return Ok(());
