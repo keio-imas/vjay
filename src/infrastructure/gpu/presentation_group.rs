@@ -9,6 +9,7 @@ use vjay_application::ports::PortResult;
 /// Window views own extra surfaces; weak registrations remove closed windows.
 pub struct PresentationGroup {
     primary: Box<dyn GpuPresentation>,
+    vsync: bool,
     outputs: Vec<(
         vjay_domain::graph::NodeId,
         Weak<RefCell<dyn GpuPresentation>>,
@@ -24,6 +25,7 @@ impl PresentationGroup {
     pub fn new(primary: Box<dyn GpuPresentation>) -> Self {
         Self {
             primary,
+            vsync: true,
             outputs: Vec::new(),
             output_sources: Vec::new(),
             source: None,
@@ -49,6 +51,7 @@ impl PresentationGroup {
         } else {
             output.borrow_mut().set_hidden(true);
         }
+        output.borrow_mut().set_vsync(self.vsync);
         self.outputs.push((node, Rc::downgrade(output)));
         Ok(())
     }
@@ -59,6 +62,18 @@ struct NodeSurface {
     visible: bool,
 }
 impl GpuPresentation for PresentationGroup {
+    fn set_vsync(&mut self, enabled: bool) {
+        self.vsync = enabled;
+        self.primary.set_vsync(enabled);
+        for node in &mut self.nodes {
+            node.preview.set_vsync(enabled);
+        }
+        for (_, output) in &self.outputs {
+            if let Some(output) = output.upgrade() {
+                output.borrow_mut().set_vsync(enabled);
+            }
+        }
+    }
     fn prepare_outputs(
         &mut self,
         device: &wgpu::Device,
@@ -118,6 +133,7 @@ impl GpuPresentation for PresentationGroup {
                 old.swap_remove(i)
             } else {
                 let mut preview = factory.create()?;
+                preview.set_vsync(self.vsync);
                 preview.set_hidden(true);
                 NodeSurface {
                     id: *id,

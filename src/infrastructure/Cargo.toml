@@ -52,3 +52,6 @@ features=["std","CGPath","CGAffineTransform","CGGeometry"]
 
 [target.'cfg(windows)'.dependencies]
 windows = {version="0.62",features=["Win32_Graphics_Direct3D12"],default-features=false}
+
+[build-dependencies]
+cc = "1.11.2"

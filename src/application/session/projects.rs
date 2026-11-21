@@ -31,7 +31,7 @@ impl Session {
     }
     pub fn project_name(&self) -> String {
         if self.untitled {
-            "Untitled".into()
+            self.preferences.default_project_name.clone()
         } else {
             self.store
                 .location()

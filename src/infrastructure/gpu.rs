@@ -32,6 +32,7 @@ mod streams;
 mod video;
 
 pub struct WgpuRuntimeFactory {
+    settings: Option<Arc<dyn vjay_application::preferences::SettingsStore>>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     presentation: Option<Rc<RefCell<dyn presentation::GpuPresentation>>>,
@@ -81,6 +82,7 @@ impl WgpuRuntimeFactory {
             description,
             presentation: Some(presentation),
             media,
+            settings: None,
             images: RendererAdapters::default(),
             context,
             programs,
@@ -133,6 +135,7 @@ impl WgpuRuntimeFactory {
                 presentation: None,
                 description: format!("{} / {:?}", info.name, info.backend),
                 media,
+                settings: None,
                 images: RendererAdapters::default(),
                 context,
                 programs,
@@ -174,6 +177,13 @@ impl WgpuRuntimeFactory {
         self.controls = Some(Rc::new(create));
         self
     }
+    pub fn with_settings(
+        mut self,
+        store: Arc<dyn vjay_application::preferences::SettingsStore>,
+    ) -> Self {
+        self.settings = Some(store);
+        self
+    }
     pub fn with_audio(mut self, create: Rc<dyn vjay_application::audio::AudioFactory>) -> Self {
         self.audio = Some(create);
         self
@@ -181,6 +191,11 @@ impl WgpuRuntimeFactory {
 }
 
 impl RuntimeFactory for WgpuRuntimeFactory {
+    fn settings_store(&self) -> Arc<dyn vjay_application::preferences::SettingsStore> {
+        self.settings
+            .clone()
+            .unwrap_or_else(|| Arc::new(vjay_application::preferences::MemorySettings::default()))
+    }
     fn create_asset_sources(&self) -> Arc<dyn vjay_application::asset_sources::AssetSourceFactory> {
         self.assets
             .clone()

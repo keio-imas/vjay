@@ -28,6 +28,22 @@ requires VideoToolbox and `scale_vt` support. Unsupported source formats may nee
 hardware-encoded compatibility cache described in the [user guide](USER_GUIDE.md#video-and-audio).
 The procedural [sample projects](SAMPLES.md) need no external media; Text uses installed fonts.
 
+## Camera access on macOS
+
+The native camera bridge is built from `native/macos/capture.mm` by Cargo using the Apple
+SDK. It links system AVFoundation, CoreVideo, Metal, and Metal Performance Shaders.
+`NSCameraUsageDescription` is embedded in the executable. A local application bundle with
+the same declaration can be created after building:
+
+```sh
+python3 scripts/bundle_macos.py
+open target/release/VJAY.app
+```
+
+The bundle is ad-hoc signed for local use, not notarized for distribution. If available,
+it includes the locally built Syphon framework. Enable Capture in Media Device Input to
+request camera access; the node starts with Capture off. See [capture setup](SETTINGS_AND_CUE.md#media-device-input).
+
 ## URL video imports
 
 Install `yt-dlp` and its default dependencies using the pinned requirements. Full YouTube
@@ -91,6 +107,7 @@ is not a claim of a complete Windows desktop build. Use Syphon on macOS.
 | Component | Validation or limitation |
 | --- | --- |
 | GPUI + wgpu native previews and output windows | Validated on macOS / Apple M2 Pro / Metal |
+| Media Device Input | macOS AVFoundation / Metal; GPU path tested with generated IOSurfaces; physical devices require local validation |
 | VideoToolbox decode and GPU scaling | Validated for supported macOS codecs |
 | Linux / Windows native presentation and GPU-decode PALs | Not implemented |
 | Portable FFmpeg decoder | CPU-based; not the selected macOS playback policy |

@@ -42,6 +42,8 @@ Esc, or dropping a reconnect on empty space preserves the original wire. Copy/pa
 selected internal wires, settings, values, and asset references; external wires and control
 assignments are not copied. Text fields retain normal text-editing shortcuts.
 
+Open **Settings** or press **Cmd+,** / **Ctrl+,** to configure audio, video, and new-project defaults.
+
 Ports have distinct types: Image, Value, Audio, Text, and File. Nodes may have multiple
 outputs, and parameters expose scalar input ports. Choose the intended output explicitly.
 
@@ -161,20 +163,14 @@ Image, then compose its Image output; missing artwork clears the previous cover.
 
 The DJ's floor audio is the reference. VJAY's audio is local monitoring for the VJ.
 
-1. Select Video / Loadable Video and open **BPM Sync / Monitor** in Inspector.
-2. Choose headphones or a dedicated monitor device before enabling **Monitor clip / headphones**.
-   This explicitly connects the clip's Audio to Cue / Headphones. A system default may be
-   the venue output, so choose the intended device first.
-3. Press **Set up BPM Sync** to create and wire Speed, Position, and Seek. Existing control
-   wires are not overwritten. The same three connections can be made manually.
-4. Set Clip BPM to the material and DJ BPM to the floor track. Use **Tap DJ BPM**, Link,
-   or rekordbox BPM as needed. **Use clip duration** copies the selected range's duration.
-5. Set Cue position and press **Align clip cue now** at the corresponding musical position.
-   Use Cue ±10 ms for position, Fine rate % for persistent correction, and Nudge ± while held.
+Use the clip's headphone audio to match the floor track by ear. No BPM value is required.
+Select the video, turn on **Cue audio**, and press **Connect Deck Sync…**. In **By ear** mode,
+adjust Playback rate to remove drift, hold Nudge to align beats, and use Jog / Cue for
+phrase alignment. Video and optional clip audio follow the same controls. Existing
+controllers retain their saved BPM ratio mode.
 
-A 120 BPM clip matched to 130 BPM uses speed 130/120. Link Beat connected to Target beat
-can contribute phase when aligning. Without Link, Align and Nudge remain manual controls.
-rekordbox history provides delayed BPM metadata, not the DJ's live beat or playhead.
+See [Settings, capture, and matching by ear](SETTINGS_AND_CUE.md) for the full workflow,
+audio routing, capture permissions, and output settings.
 
 ### Trigger envelopes
 
@@ -251,7 +247,7 @@ presentation is not implemented. Setup and environment paths are in [BUILD](BUIL
 | 3D | 3D Transform, 3D Shape, 3D Tunnel |
 | Controls | Files, Text Value, Slider, Knob, Toggle, Button, XY pad, Number |
 | Signals | Constant, LFO, Tap tempo, Smooth, Counter, Value selector, Sample and hold, Attack/Release, Signal noise |
-| Timing | BPM Sync |
+| Timing | Deck Sync (By ear / BPM ratio) |
 | Math | Add, Subtract, Multiply, Divide, Modulo, Power, Min/Max, Absolute, Sine, Cosine, Floor, Round, Fraction, Compare, AND/OR/NOT, Quantize, Map range, Clamp, Easing |
 | Organization | Comment, Label |
 | Input | Keyboard, MIDI in, OSC in |

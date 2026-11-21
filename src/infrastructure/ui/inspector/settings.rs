@@ -160,7 +160,18 @@ impl Editor {
                 })),
             )
         }
-        for (key, value) in &node.settings.properties {
+        let declared = descriptor.properties.iter().filter_map(|p| {
+            node.settings
+                .properties
+                .get(&p.key)
+                .map(|value| (&p.key, value))
+        });
+        let extra = node
+            .settings
+            .properties
+            .iter()
+            .filter(|(key, _)| !descriptor.properties.iter().any(|p| p.key == **key));
+        for (key, value) in declared.chain(extra) {
             if let Some(provider) = descriptor
                 .properties
                 .iter()
@@ -173,7 +184,11 @@ impl Editor {
                         "choose-video-source",
                         format!(
                             "Source: {} ▾",
-                            if value.is_empty() { "Choose…" } else { value }
+                            if value.is_empty() {
+                                "Choose…"
+                            } else {
+                                node.settings.property_labels.get(&key).unwrap_or(value)
+                            }
                         ),
                     )
                     .text_xs()

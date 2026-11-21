@@ -13,7 +13,9 @@ impl Session {
         self.audio.devices()
     }
     pub fn select_monitor_device(&mut self, name: &str) -> PortResult<()> {
-        self.audio.select_device(name)?;
+        let mut prefs = self.preferences.clone();
+        prefs.audio.device = name.into();
+        self.apply_preferences(prefs)?;
         self.audio_error = None;
         self.invalidate(true);
         Ok(())
@@ -87,20 +89,36 @@ impl Session {
     pub fn video_sync(&self, video: NodeId) -> Option<NodeId> {
         let schema = self.project.graph.schema(video).ok()?;
         let speed = schema.inputs.len() + schema.capabilities.media?.speed;
-        self.project
-            .graph
-            .connections()
-            .find(|c| {
-                c.to == video
-                    && c.input == speed
-                    && self
-                        .project
-                        .graph
-                        .schema(c.from)
-                        .is_ok_and(|s| s.capabilities.tempo_sync.is_some())
-            })
-            .map(|c| c.from)
+        let position = schema.inputs.len() + schema.capabilities.media?.position;
+        let seek = schema.inputs.len() + schema.capabilities.media?.seek?;
+        self.project.graph.connections().find_map(|c| {
+            if c.to != video || c.input != speed {
+                return None;
+            }
+            let b = self
+                .project
+                .graph
+                .schema(c.from)
+                .ok()?
+                .capabilities
+                .tempo_sync?;
+            if c.output != b.outputs[0] {
+                return None;
+            }
+            [(b.outputs[1], position), (b.outputs[2], seek)]
+                .iter()
+                .all(|(output, input)| {
+                    self.project.graph.connections().any(|e| {
+                        e.from == c.from
+                            && e.output == *output
+                            && e.to == video
+                            && e.input == *input
+                    })
+                })
+                .then_some(c.from)
+        })
     }
+
     pub fn setup_video_sync(&mut self, video: NodeId) -> PortResult<NodeId> {
         if let Some(node) = self.video_sync(video) {
             return Ok(node);

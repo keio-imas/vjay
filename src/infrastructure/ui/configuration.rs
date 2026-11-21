@@ -182,6 +182,7 @@ impl Editor {
                     .get_mut(&key)
                     .ok_or("Setting no longer exists")?;
                 *value = text;
+                settings.property_labels.remove(&key);
                 self.session_mut().set_settings(id, settings)
             }
             Target::OscEndpoint => {

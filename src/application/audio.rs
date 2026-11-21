@@ -20,6 +20,7 @@ pub struct AudioRoute {
     pub seconds: f64,
     pub window: crate::media::PlaybackWindow,
     pub ready: bool,
+    pub seek_revision: u64,
     gains: Vec<ValueRef>,
     rate: ValueRef,
     seek: ValueRef,
@@ -66,6 +67,7 @@ impl AudioPlan {
                             seconds: 0.0,
                             window: Default::default(),
                             ready: true,
+                            seek_revision: 0,
                             gains,
                             rate: signals
                                 .parameter(id, media.speed)
@@ -112,10 +114,21 @@ impl AudioPlan {
             route.seconds = timeline.base(route.node);
             route.window = timeline.window(route.node);
             route.ready = timeline.ready(route.node);
+            route.seek_revision = timeline.seek_revision(route.node);
         }
     }
 }
 pub trait AudioBackend {
+    fn media_position(&self, _node: NodeId) -> Option<f64> {
+        None
+    }
+    fn configure(&mut self, settings: &crate::preferences::AudioSettings) -> PortResult<()> {
+        if *settings == crate::preferences::AudioSettings::default() {
+            Ok(())
+        } else {
+            Err("Audio output configuration is unavailable".into())
+        }
+    }
     fn selected_device(&self) -> &str {
         ""
     }
@@ -136,6 +149,9 @@ pub trait AudioFactory {
 }
 pub struct DisabledAudio;
 impl AudioBackend for DisabledAudio {
+    fn configure(&mut self, _: &crate::preferences::AudioSettings) -> PortResult<()> {
+        Ok(())
+    }
     fn prepare(&mut self, plan: &AudioPlan, _: &[MediaAsset]) -> PortResult<()> {
         if plan.routes.is_empty() {
             Ok(())

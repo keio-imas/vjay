@@ -37,6 +37,7 @@ mod parameter_drag;
 mod projects;
 mod rendering;
 mod selection;
+mod settings;
 mod status;
 mod uniforms;
 mod video_sync;
@@ -54,6 +55,8 @@ use theme::*;
 
 #[derive(Clone, Copy)]
 enum Drag {
+    MediaJog(NodeId, Position),
+    MediaSeek(NodeId, f32, f32),
     Nodes,
     Pan(Position, Position),
     Control(u64, Position, Position),
@@ -64,6 +67,7 @@ enum Drag {
 }
 
 pub struct Editor {
+    settings: Option<settings::Settings>,
     session: Option<Session>,
     preview: Option<SharedPreview>,
     message: String,

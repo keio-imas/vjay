@@ -3,7 +3,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
     },
 };
 use vjay_application::{
@@ -13,8 +13,10 @@ use vjay_application::{
 };
 use vjay_domain::{graph::NodeId, node::AssetId};
 mod decoder;
+mod device;
 mod mixer;
 mod pcm;
+mod settings;
 use decoder::AudioWorker;
 
 pub struct CpalAudioFactory {
@@ -32,6 +34,8 @@ impl AudioFactory for CpalAudioFactory {
             ffmpeg: self.ffmpeg.clone(),
             ffprobe: self.ffprobe.clone(),
             device_name: String::new(),
+            output: Default::default(),
+            master_volume: Arc::new(AtomicU32::new(0.8_f32.to_bits())),
             stream: None,
             sources: Vec::new(),
             keys: Vec::new(),
@@ -44,9 +48,12 @@ struct Source {
     node: NodeId,
     worker: AudioWorker,
     position: f32,
+    seek_revision: u64,
     window: vjay_application::media::PlaybackWindow,
 }
 struct CpalAudio {
+    output: vjay_application::preferences::AudioSettings,
+    master_volume: Arc<AtomicU32>,
     ffmpeg: PathBuf,
     ffprobe: PathBuf,
     device_name: String,
@@ -57,6 +64,18 @@ struct CpalAudio {
     failed: Arc<AtomicBool>,
 }
 impl AudioBackend for CpalAudio {
+    fn media_position(&self, node: NodeId) -> Option<f64> {
+        self.sources
+            .iter()
+            .find(|s| s.node == node)
+            .map(|s| f64::from_bits(s.worker.shared.playhead.load(Ordering::Acquire)))
+    }
+    fn configure(
+        &mut self,
+        settings: &vjay_application::preferences::AudioSettings,
+    ) -> PortResult<()> {
+        self.configure_output(settings)
+    }
     fn selected_device(&self) -> &str {
         &self.device_name
     }
@@ -70,15 +89,11 @@ impl AudioBackend for CpalAudio {
         names
     }
     fn select_device(&mut self, name: &str) -> PortResult<()> {
-        if !name.is_empty() && !self.devices().iter().any(|n| n == name) {
-            return Err("Audio device not found".into());
-        }
-        self.playing.store(false, Ordering::Release);
-        self.stream = None;
-        self.keys.clear();
-        self.device_name = name.into();
-        Ok(())
+        let mut settings = self.output.clone();
+        settings.device = name.into();
+        self.configure_output(&settings)
     }
+
     fn media_duration(&self, node: NodeId) -> Option<f64> {
         self.sources
             .iter()
@@ -107,18 +122,7 @@ impl AudioBackend for CpalAudio {
         if keys.is_empty() {
             return Ok(());
         }
-        let host = cpal::default_host();
-        let device = if self.device_name.is_empty() {
-            host.default_output_device()
-        } else {
-            host.output_devices()
-                .map_err(|e| e.to_string())?
-                .find(|d| d.name().is_ok_and(|n| n == self.device_name))
-        }
-        .ok_or("No matching monitor audio device")?;
-        let supported = device.default_output_config().map_err(|e| e.to_string())?;
-        let format = supported.sample_format();
-        let config: cpal::StreamConfig = supported.into();
+        let (device, config, format) = device::configuration(&self.output)?;
         let mut inputs = Vec::new();
         for &(node, asset) in &keys {
             let path = &assets
@@ -137,6 +141,7 @@ impl AudioBackend for CpalAudio {
                 node,
                 worker,
                 position: f32::NAN,
+                seek_revision: 0,
                 window: Default::default(),
             });
         }
@@ -147,6 +152,10 @@ impl AudioBackend for CpalAudio {
                 inputs,
                 self.playing.clone(),
                 self.failed.clone(),
+                mixer::Routing {
+                    pair: self.output.channel_pair as usize,
+                    gain: self.master_volume.clone(),
+                },
             ),
             cpal::SampleFormat::F64 => mixer::open::<f64>(
                 &device,
@@ -154,6 +163,10 @@ impl AudioBackend for CpalAudio {
                 inputs,
                 self.playing.clone(),
                 self.failed.clone(),
+                mixer::Routing {
+                    pair: self.output.channel_pair as usize,
+                    gain: self.master_volume.clone(),
+                },
             ),
             cpal::SampleFormat::I16 => mixer::open::<i16>(
                 &device,
@@ -161,6 +174,10 @@ impl AudioBackend for CpalAudio {
                 inputs,
                 self.playing.clone(),
                 self.failed.clone(),
+                mixer::Routing {
+                    pair: self.output.channel_pair as usize,
+                    gain: self.master_volume.clone(),
+                },
             ),
             cpal::SampleFormat::U16 => mixer::open::<u16>(
                 &device,
@@ -168,6 +185,10 @@ impl AudioBackend for CpalAudio {
                 inputs,
                 self.playing.clone(),
                 self.failed.clone(),
+                mixer::Routing {
+                    pair: self.output.channel_pair as usize,
+                    gain: self.master_volume.clone(),
+                },
             ),
             cpal::SampleFormat::I32 => mixer::open::<i32>(
                 &device,
@@ -175,6 +196,10 @@ impl AudioBackend for CpalAudio {
                 inputs,
                 self.playing.clone(),
                 self.failed.clone(),
+                mixer::Routing {
+                    pair: self.output.channel_pair as usize,
+                    gain: self.master_volume.clone(),
+                },
             ),
             _ => Err(format!("Unsupported audio device format: {format}")),
         }?;
@@ -216,6 +241,7 @@ impl AudioBackend for CpalAudio {
                     if route.ready { route.speed } else { 0.0 },
                     route.position,
                     route.window,
+                    route.seek_revision,
                 ));
             }
             source
@@ -223,7 +249,7 @@ impl AudioBackend for CpalAudio {
                 .shared
                 .gain
                 .store(gain.clamp(0.0, 4.0).to_bits(), Ordering::Release);
-            if let Some((base, rate, position, window)) = route_state {
+            if let Some((base, rate, position, window, seek_revision)) = route_state {
                 source
                     .worker
                     .shared
@@ -256,10 +282,12 @@ impl AudioBackend for CpalAudio {
                 } else {
                     (target - predicted).abs()
                 };
-                if position != source.position
+                if seek_revision != source.seek_revision
+                    || position != source.position
                     || source.window != window
                     || (!paused && !pending && predicted.is_finite() && drift > 0.25)
                 {
+                    source.seek_revision = seek_revision;
                     source.position = position;
                     source.window = window;
                     source.worker.seek(target);

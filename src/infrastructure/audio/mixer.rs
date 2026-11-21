@@ -5,7 +5,7 @@ use super::{
 use cpal::traits::DeviceTrait;
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU32, Ordering},
 };
 use vjay_application::ports::PortResult;
 
@@ -172,12 +172,25 @@ impl SourceConsumer {
     }
 }
 
+pub(super) struct Routing {
+    pub pair: usize,
+    pub gain: Arc<AtomicU32>,
+}
+impl Default for Routing {
+    fn default() -> Self {
+        Self {
+            pair: 0,
+            gain: Arc::new(AtomicU32::new(1_f32.to_bits())),
+        }
+    }
+}
 pub(super) fn open<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
     mut sources: Vec<SourceConsumer>,
     playing: Arc<AtomicBool>,
     failed: Arc<AtomicBool>,
+    routing: Routing,
 ) -> PortResult<cpal::Stream>
 where
     T: cpal::SizedSample + cpal::FromSample<f32>,
@@ -195,6 +208,7 @@ where
                 for source in &mut sources {
                     source.begin_buffer();
                 }
+                let master = f32::from_bits(routing.gain.load(Ordering::Acquire));
                 for frame in data.chunks_mut(channels) {
                     let mut stereo = [0.0_f32; 2];
                     for source in &mut sources {
@@ -205,12 +219,12 @@ where
                     for (channel, sample) in frame.iter_mut().enumerate() {
                         let value = if channels == 1 {
                             (stereo[0] + stereo[1]) * 0.5
-                        } else if channel < 2 {
-                            stereo[channel]
+                        } else if channel >= routing.pair * 2 && channel < routing.pair * 2 + 2 {
+                            stereo[channel - routing.pair * 2]
                         } else {
                             0.0
                         };
-                        *sample = T::from_sample(value.clamp(-1.0, 1.0));
+                        *sample = T::from_sample((value * master).clamp(-1.0, 1.0));
                     }
                 }
                 for source in &mut sources {

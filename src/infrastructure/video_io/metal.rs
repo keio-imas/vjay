@@ -1,7 +1,7 @@
 use objc2::{rc::Retained, runtime::ProtocolObject};
 use objc2_metal::{MTLDevice, MTLSharedEvent};
 use vjay_application::ports::PortResult;
-pub(super) struct Fence {
+pub(crate) struct Fence {
     pub event: Retained<ProtocolObject<dyn MTLSharedEvent>>,
     pub value: u64,
 }
@@ -25,4 +25,31 @@ impl Fence {
         metal.add_wait_event(self.event.clone(), self.value);
         Ok(())
     }
+}
+
+/// Mark the persistent input initialized in wgpu before any external Metal writes.
+/// Otherwise wgpu's first sampled use clears the externally produced frame.
+pub(crate) fn initialize_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+) {
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("external input initialization"),
+    });
+    {
+        let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &texture.create_view(&Default::default()),
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            ..Default::default()
+        });
+    }
+    queue.submit([encoder.finish()]);
 }

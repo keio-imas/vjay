@@ -6797,7 +6797,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vjay"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "vjay-application",
  "vjay-domain",
@@ -6807,7 +6807,7 @@ dependencies = [
 
 [[package]]
 name = "vjay-application"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "thiserror 2.0.21",
@@ -6816,7 +6816,7 @@ dependencies = [
 
 [[package]]
 name = "vjay-domain"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "thiserror 2.0.21",
@@ -6824,12 +6824,13 @@ dependencies = [
 
 [[package]]
 name = "vjay-infrastructure"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64",
  "block2",
  "blowfish",
  "bytemuck",
+ "cc",
  "cosmic-text",
  "cpal",
  "gpui",

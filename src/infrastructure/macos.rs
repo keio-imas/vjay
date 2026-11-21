@@ -27,6 +27,7 @@ pub struct MacGpuPreview {
     blit: Option<Blit>,
     dimensions: [u32; 2],
     resize: bool,
+    vsync: bool,
     last_bounds: Option<PreviewBounds>,
     hidden: bool,
     regions: Vec<crate::gpu::presentation::PreviewRegion>,
@@ -78,6 +79,7 @@ impl MacGpuPreview {
             blit: None,
             dimensions: [1, 1],
             resize: true,
+            vsync: true,
             last_bounds: None,
             hidden: false,
             regions: Vec::new(),
@@ -88,6 +90,17 @@ impl MacGpuPreview {
 }
 
 impl GpuPresentation for MacGpuPreview {
+    fn set_vsync(&mut self, enabled: bool) {
+        self.vsync = enabled;
+        if let Some(c) = &mut self.config {
+            c.present_mode = if enabled {
+                wgpu::PresentMode::AutoVsync
+            } else {
+                wgpu::PresentMode::AutoNoVsync
+            };
+            self.resize = true;
+        }
+    }
     fn set_preview_regions(&mut self, regions: &[crate::gpu::presentation::PreviewRegion]) {
         self.apply_regions(regions);
     }
@@ -115,7 +128,11 @@ impl GpuPresentation for MacGpuPreview {
             .copied()
             .find(|f| !f.is_srgb())
             .unwrap_or(config.format);
-        config.present_mode = wgpu::PresentMode::Fifo;
+        config.present_mode = if self.vsync {
+            wgpu::PresentMode::AutoVsync
+        } else {
+            wgpu::PresentMode::AutoNoVsync
+        };
         config.desired_maximum_frame_latency = 2;
         self.blit = Some(Blit::new(device, config.format));
         self.config = Some(config);

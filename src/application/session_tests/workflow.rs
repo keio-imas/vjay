@@ -109,6 +109,8 @@ fn bpm_sync_setup_is_explicit_idempotent_and_monitoring_is_optional() {
     assert_eq!(s.project().graph.connection_count(), before + 3);
     assert_eq!(s.setup_video_sync(video).unwrap(), sync);
     let binding = s.schema(sync).capabilities.tempo_sync.unwrap();
+    s.set_parameter(sync, binding.manual.unwrap().mode, 1.0)
+        .unwrap();
     s.set_parameter(sync, binding.clip_bpm, 100.0).unwrap();
     s.set_parameter(sync, binding.dj_bpm, 120.0).unwrap();
     s.render_at(0.0).unwrap();

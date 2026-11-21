@@ -8,7 +8,7 @@ use objc2::{
 use objc2_foundation::{NSData, NSPoint, NSRect, NSSize, NSString};
 use std::path::Path;
 mod connection;
-mod sync;
+use super::metal as sync;
 type LocalSources = Arc<std::sync::Mutex<Vec<(String, String, Vec<u8>)>>>;
 pub struct SyphonFactory {
     library: Arc<Library>,
@@ -106,6 +106,7 @@ impl VideoIoFactory for SyphonFactory {
                 msg_send![class(c"MPSImageBilinearScale")?, alloc];
             let scale: Retained<AnyObject> = msg_send![allocated,initWithDevice:&*native];
             let texture = super::texture(device, extent);
+            sync::initialize_texture(device, queue, &texture);
             let target = native_texture(&texture)?;
             Ok(Box::new(Receiver {
                 client,

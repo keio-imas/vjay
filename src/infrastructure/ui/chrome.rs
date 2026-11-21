@@ -28,6 +28,11 @@ impl Editor {
                     .mr_3()
                     .child(format!("v{}", env!("CARGO_PKG_VERSION"))),
             )
+            .child(
+                button("settings", "Settings")
+                    .debug_selector(|| "settings".into())
+                    .on_click(cx.listener(|this, _, window, cx| this.open_settings(window, cx))),
+            )
             .child(button("new-project", "New").px_2().on_click(cx.listener(
                 |this, _, window, cx| {
                     this.request_project_change(projects::Change::New, window, cx)

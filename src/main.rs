@@ -53,8 +53,15 @@ fn run() -> PortResult<()> {
         let path = std::env::var_os("SYPHON_FRAMEWORK_PATH")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| {
-                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("target/syphon/Syphon.framework/Syphon")
+                let bundled = std::env::current_exe().ok().and_then(|p| {
+                    p.parent()?
+                        .parent()
+                        .map(|p| p.join("Frameworks/Syphon.framework/Syphon"))
+                });
+                bundled.filter(|p| p.is_file()).unwrap_or_else(|| {
+                    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .join("target/syphon/Syphon.framework/Syphon")
+                })
             });
         let syphon: Arc<dyn vjay_infrastructure::video_io::VideoIoFactory> =
             match vjay_infrastructure::video_io::syphon::SyphonFactory::new(&path) {
@@ -84,6 +91,23 @@ fn run() -> PortResult<()> {
             };
         video_io.0.push(("spout", spout));
     }
+    #[cfg(target_os = "macos")]
+    video_io.0.push((
+        "capture",
+        Arc::new(vjay_infrastructure::video_io::camera::CameraFactory),
+    ));
+    #[cfg(not(target_os = "macos"))]
+    video_io.0.push((
+        "capture",
+        Arc::new(vjay_infrastructure::video_io::Unavailable(
+            "Camera capture is currently supported on macOS".into(),
+        )),
+    ));
+    let settings: Arc<dyn vjay_application::preferences::SettingsStore> =
+        Arc::new(vjay_infrastructure::preferences::JsonSettingsStore::new(
+            vjay_infrastructure::preferences::default_path(),
+        ));
+    let headless_settings = settings.clone();
     let video_io = Arc::new(video_io);
     let headless_video_io = video_io.clone();
     let service_factories: Arc<Vec<Box<dyn vjay_infrastructure::services::ServiceFactory>>> =
@@ -136,6 +160,7 @@ fn run() -> PortResult<()> {
                         wgpu::Backends::all()
                     },
                 )?
+                .with_settings(headless_settings)
                 .with_images(Arc::new(vjay_infrastructure::images::RasterImageLoader))
                 .with_prepared_images(headless_text)
                 .with_video_io(headless_video_io)
@@ -170,6 +195,7 @@ fn run() -> PortResult<()> {
                         media.clone(),
                         vjay_infrastructure::gpu::programs::builtin_programs(),
                     )?
+                    .with_settings(settings)
                     .with_images(Arc::new(vjay_infrastructure::images::RasterImageLoader))
                     .with_prepared_images(text_images)
                     .with_video_io(video_io)
@@ -213,6 +239,7 @@ fn run() -> PortResult<()> {
                                     wgpu::Backends::all()
                                 },
                             )?
+                            .with_settings(settings)
                             .with_images(Arc::new(vjay_infrastructure::images::RasterImageLoader))
                             .with_prepared_images(text_images)
                             .with_video_io(video_io)
@@ -253,6 +280,18 @@ fn run() -> PortResult<()> {
             Box::new(JsonProjectStore::new(args.project)),
             args.extent,
         )?;
+        if let Err(e) = session.load_preferences() {
+            eprintln!(
+                "Settings could not be applied: {e}. Open Settings to choose an available device."
+            );
+        }
+        if !args.size_explicit {
+            let video = &session.preferences().video;
+            session.set_extent(vjay_application::ports::Extent::new(
+                video.width,
+                video.height,
+            )?)?;
+        }
         if load {
             session.load()?;
         }

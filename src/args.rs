@@ -5,6 +5,7 @@ pub struct Args {
     pub headless: bool,
     pub frames: u32,
     pub extent: Extent,
+    pub size_explicit: bool,
     pub output: Option<PathBuf>,
     pub project: PathBuf,
     pub video: Option<PathBuf>,
@@ -19,6 +20,7 @@ impl Args {
         let mut args = Self {
             headless: false,
             frames: 3,
+            size_explicit: false,
             extent: Extent::new(960, 540)?,
             output: None,
             project: "vjay-project.json".into(),
@@ -40,7 +42,7 @@ impl Args {
             match flag.as_str() {
                 "--help" | "-h" => {
                     println!(
-                        "VJAY v{} / GPUI + WebGPU\n\n  cargo run --release\n  cargo run --release -- --headless --frames 120 --size 1280x720 --output /tmp/vjay.ppm\n\nOptions:\n  --video PATH     Import a video as the program source\n  --output-window  Open the independent output window at startup\n  --yt-dlp PATH    URL video importer (default: project venv or PATH)\n  --ffmpeg PATH    FFmpeg executable (default: ffmpeg)\n  --ffprobe PATH   ffprobe executable (default: ffprobe)\n  --headless       Render without opening a window\n  --frames N       Number of headless frames (1..3600, default 3)\n  --size WxH       Render resolution (1..4096 each, default 960x540)\n  --output PATH    Save the final headless frame as PPM\n  --project PATH   Project to load if present; GUI Save/Load destination\n  -V, --version    Show version\n  -h, --help       Show help",
+                        "VJAY v{} / GPUI + WebGPU\n\n  cargo run --release\n  cargo run --release -- --headless --frames 120 --size 1280x720 --output /tmp/vjay.ppm\n\nOptions:\n  --video PATH     Import a video as the program source\n  --output-window  Open the independent output window at startup\n  --yt-dlp PATH    URL video importer (default: project venv or PATH)\n  --ffmpeg PATH    FFmpeg executable (default: ffmpeg)\n  --ffprobe PATH   ffprobe executable (default: ffprobe)\n  --headless       Render without opening a window\n  --frames N       Number of headless frames (1..3600, default 3)\n  --size WxH       Render resolution (1..4096 each, default: saved video settings)\n  --output PATH    Save the final headless frame as PPM\n  --project PATH   Project to load if present; GUI Save/Load destination\n  -V, --version    Show version\n  -h, --help       Show help",
                         env!("CARGO_PKG_VERSION")
                     );
                     return Ok(None);
@@ -65,6 +67,7 @@ impl Args {
                 "--output" => args.output = Some(input.next().ok_or("Missing output path")?.into()),
                 "--project" => args.project = input.next().ok_or("Missing project path")?.into(),
                 "--size" => {
+                    args.size_explicit = true;
                     let size = input.next().ok_or("Missing render size")?;
                     let (width, height) = size.split_once('x').ok_or("Use --size WIDTHxHEIGHT")?;
                     args.extent = Extent::new(

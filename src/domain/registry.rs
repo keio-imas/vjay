@@ -87,18 +87,24 @@ fn valid_capabilities(d: &NodeDescriptor) -> bool {
         && c.range_parameters
             .is_none_or(|[a, b]| parameter(a) && parameter(b))
         && c.tempo_sync.is_none_or(|b| {
-            [
-                b.clip_bpm,
-                b.dj_bpm,
-                b.trim,
-                b.nudge,
-                b.cue,
-                b.duration,
-                b.align,
-                b.nudge_step,
-            ]
-            .into_iter()
-            .all(parameter)
+            let manual_valid = b.manual.is_none_or(|m| {
+                [m.mode, m.rate, m.range, m.marker]
+                    .into_iter()
+                    .all(parameter)
+            });
+            manual_valid
+                && [
+                    b.clip_bpm,
+                    b.dj_bpm,
+                    b.trim,
+                    b.nudge,
+                    b.cue,
+                    b.duration,
+                    b.align,
+                    b.nudge_step,
+                ]
+                .into_iter()
+                .all(parameter)
                 && b.outputs.into_iter().all(|p| {
                     d.outputs
                         .get(p)

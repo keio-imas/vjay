@@ -56,7 +56,7 @@ impl Editor {
         }
         let path = cx.prompt_for_new_path(
             self.session().project_directory(),
-            Some("Untitled.vjay.json"),
+            Some(&self.session().preferences().default_project_name),
         );
         cx.spawn(async move |entity, cx| {
             let result = path.await;
@@ -139,7 +139,7 @@ impl Editor {
             return;
         }
         let name = if self.session().is_untitled() {
-            "Untitled.vjay.json".into()
+            self.session().preferences().default_project_name.clone()
         } else {
             self.session().project_name()
         };

@@ -52,7 +52,7 @@ impl ProjectStore for JsonProjectStore {
     }
 }
 
-fn atomic_write(path: &Path, bytes: &[u8]) -> PortResult<()> {
+pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> PortResult<()> {
     let name = path
         .file_name()
         .ok_or("Expected a file path")?

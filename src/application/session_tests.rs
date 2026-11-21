@@ -18,11 +18,16 @@ use vjay_domain::{
 #[derive(Default)]
 struct Counts {
     prepares: usize,
+    duration: Option<f64>,
     frames: usize,
     fail_prepare: bool,
 }
 struct Renderer(Rc<RefCell<Counts>>);
 impl RenderBackend for Renderer {
+    fn media_duration(&self, _: NodeId) -> Option<f64> {
+        self.0.borrow().duration
+    }
+
     fn prepare(&mut self, _: &RenderPlan, _: Extent) -> PortResult<()> {
         let mut counts = self.0.borrow_mut();
         counts.prepares += 1;
@@ -264,3 +269,6 @@ mod modulation;
 mod studio;
 
 mod workflow;
+
+mod deck;
+mod preferences;

@@ -28,32 +28,40 @@ impl Editor {
             return div()
                 .flex()
                 .flex_col()
-                .gap_2()
-                .py_2()
-                .border_b_1()
-                .border_color(rgb(BORDER))
+                .gap_1()
+                .py_1()
                 .child(
                     div()
                         .flex()
                         .items_center()
-                        .child(div().flex_1().text_xs().child(parameter.name.clone()))
+                        .gap_2()
+                        .child(
+                            div()
+                                .w(px(104.0))
+                                .flex_shrink_0()
+                                .text_xs()
+                                .text_color(rgb(MUTED))
+                                .child(parameter.name.clone()),
+                        )
+                        .child(div().flex_1().min_w_0().child(if momentary {
+                            self.trigger_parameter(id, index, driven, cx)
+                        } else {
+                            self.choice_parameter(id, index, value, driven, cx)
+                        }))
                         .when(!pinned, |e| {
                             e.child(
-                                button(SharedString::from(format!("pin-{}-{index}", id.0)), "Pin")
+                                button(SharedString::from(format!("pin-{}-{index}", id.0)), "+")
+                                    .px_1()
                                     .text_xs()
+                                    .text_color(rgb(MUTED))
                                     .on_click(cx.listener(move |this, _, _, cx| {
-                                        let result = this.session_mut().pin_control(id, index);
-                                        this.apply(result);
+                                        let r = this.session_mut().pin_control(id, index);
+                                        this.apply(r);
                                         cx.notify();
                                     })),
                             )
                         }),
                 )
-                .child(if momentary {
-                    self.trigger_parameter(id, index, driven, cx)
-                } else {
-                    self.choice_parameter(id, index, value, driven, cx)
-                })
                 .into_any_element();
         }
         div()
@@ -61,9 +69,6 @@ impl Editor {
             .flex_col()
             .gap_1()
             .py_1()
-            .pb_2()
-            .border_b_1()
-            .border_color(rgb(BORDER))
             .child(
                 div()
                     .flex()
@@ -75,6 +80,7 @@ impl Editor {
                             .min_w_0()
                             .truncate()
                             .text_xs()
+                            .text_color(rgb(MUTED))
                             .child(parameter.name.clone()),
                     )
                     .child(
@@ -110,7 +116,7 @@ impl Editor {
                     )
                     .when(!pinned, |e| {
                         e.child(
-                            button(SharedString::from(format!("pin-{}-{index}", id.0)), "Pin")
+                            button(SharedString::from(format!("pin-{}-{index}", id.0)), "+")
                                 .text_xs()
                                 .px_1()
                                 .text_color(rgb(MUTED))
@@ -130,7 +136,7 @@ impl Editor {
                     )))
                     .debug_selector(move || format!("parameter-{}-{index}-{pinned}", id.0))
                     .relative()
-                    .h(px(10.0))
+                    .h(px(8.0))
                     .w_full()
                     .child(
                         div()
@@ -138,7 +144,7 @@ impl Editor {
                             .left_0()
                             .right_0()
                             .top(px(3.0))
-                            .h(px(4.0))
+                            .h(px(2.0))
                             .bg(rgb(BACKGROUND))
                             .child(div().h_full().w(relative(ratio)).bg(rgb(if driven {
                                 VALUE

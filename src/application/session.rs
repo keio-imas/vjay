@@ -8,10 +8,13 @@ use vjay_domain::{
     node::{NodeDescriptor, NodeFactory},
 };
 mod clipboard;
+mod deck;
+pub use deck::ClipPosition;
 mod controls;
 mod editing;
 mod media;
 mod midi;
+mod preferences;
 mod projects;
 mod rendering;
 mod settings;
@@ -20,7 +23,10 @@ mod uniforms;
 pub use midi::MidiActivity;
 
 pub struct Session {
+    preferences: crate::preferences::Preferences,
+    settings_store: std::sync::Arc<dyn crate::preferences::SettingsStore>,
     modified: std::cell::Cell<bool>,
+    deck_rates: Vec<(NodeId, f32)>,
     sync_taps: std::collections::HashMap<NodeId, vjay_domain::tempo::TapTempo>,
     untitled: bool,
     file_media: crate::file_media::FileMedia,
@@ -66,7 +72,10 @@ impl Session {
         let clock = runtime.create_clock();
         let last_clock = clock.seconds();
         Ok(Self {
+            preferences: Default::default(),
+            settings_store: runtime.settings_store(),
             modified: std::cell::Cell::new(false),
+            deck_rates: Vec::new(),
             sync_taps: Default::default(),
             untitled: true,
             file_media: Default::default(),
@@ -195,6 +204,7 @@ impl Session {
         self.invalidate(true);
         self.modified.set(false);
         self.sync_taps.clear();
+        self.deck_rates.clear();
         Ok(())
     }
     pub fn store_location(&self) -> &std::path::Path {

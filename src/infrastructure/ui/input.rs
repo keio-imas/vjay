@@ -23,6 +23,20 @@ impl Editor {
             return;
         }
         match self.drag {
+            Some(Drag::MediaSeek(node, left, width)) => {
+                let r = self
+                    .session_mut()
+                    .seek_clip(node, (pointer.x - left) / width.max(1.0));
+                self.apply(r);
+            }
+            Some(Drag::MediaJog(node, mouse)) => {
+                let factor = if event.modifiers.shift { 0.0003 } else { 0.003 };
+                let result = self
+                    .session_mut()
+                    .jog_clip(node, f64::from(pointer.x - mouse.x) * factor);
+                self.apply(result);
+                self.drag = Some(Drag::MediaJog(node, pointer));
+            }
             Some(Drag::Nodes) => self.move_selected_nodes(pointer),
             Some(Drag::Pan(start, mouse)) => {
                 self.pan = Position {

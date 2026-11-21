@@ -9,6 +9,17 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         if event.keystroke.key == "escape" {
+            if let Some(s) = &mut self.settings {
+                if s.menu_open() {
+                    s.close_menu();
+                } else {
+                    self.settings = None;
+                }
+                window.focus(&self.focus);
+                cx.stop_propagation();
+                cx.notify();
+                return;
+            }
             self.cable = None;
             self.cancel_gesture();
             self.insert_menu = None;
@@ -23,6 +34,16 @@ impl Editor {
             window.focus(&self.focus);
             cx.stop_propagation();
             cx.notify();
+            return;
+        }
+        if event.keystroke.key == ","
+            && (event.keystroke.modifiers.platform || event.keystroke.modifiers.control)
+        {
+            self.open_settings(window, cx);
+            cx.stop_propagation();
+            return;
+        }
+        if self.settings.is_some() {
             return;
         }
         if self.project_key(event, window, cx) {

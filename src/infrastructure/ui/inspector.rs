@@ -35,8 +35,9 @@ impl Editor {
             .flex_col()
             .flex_1()
             .min_h_0()
-            .gap_2()
-            .p_3()
+            .gap_1()
+            .px_3()
+            .py_2()
             .overflow_y_scroll();
         if let Some(id) = self.selected_control {
             return panel
@@ -55,38 +56,36 @@ impl Editor {
             return panel.into_any_element();
         };
         let descriptor = self.session().schema(node.id);
-        panel = panel
-            .child(
-                div()
-                    .pb_3()
-                    .border_b_1()
-                    .border_color(rgb(BORDER))
-                    .child(if node.settings.label.is_empty() {
-                        descriptor.name.to_string()
-                    } else {
-                        node.settings.label.clone()
-                    })
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(rgb(MUTED))
-                            .child(format!("{} · Node {}", descriptor.category, id.0)),
-                    ),
-            )
-            .child(
-                button(
-                    "node-label",
-                    if node.settings.label.is_empty() {
-                        "Rename…".to_string()
-                    } else {
-                        node.settings.label.clone()
-                    },
+        panel = panel.child(
+            div()
+                .pb_3()
+                .pt_1()
+                .border_b_1()
+                .border_color(rgb(BORDER))
+                .child(
+                    button(
+                        "node-label",
+                        if node.settings.label.is_empty() {
+                            descriptor.name.to_string()
+                        } else {
+                            node.settings.label.clone()
+                        },
+                    )
+                    .px_0()
+                    .w_full()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .truncate()
+                    .on_click(cx.listener(move |this, _, w, cx| {
+                        this.open_configuration(Target::NodeLabel(id), w, cx)
+                    })),
                 )
-                .text_xs()
-                .on_click(cx.listener(move |this, _, window, cx| {
-                    this.open_configuration(Target::NodeLabel(id), window, cx)
-                })),
-            );
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(rgb(MUTED))
+                        .child(format!("{}  /  #{}", descriptor.category, id.0)),
+                ),
+        );
         panel = panel.child(self.inspector_settings(id, cx));
         if !descriptor.parameters.is_empty() {
             panel = panel.child(section("Parameters"));
@@ -145,7 +144,15 @@ impl Editor {
                     ),
             );
         }
-        panel = panel.child(section("Connections"));
+        let connected = self
+            .session()
+            .project()
+            .graph
+            .connections()
+            .any(|c| c.to == id);
+        if connected {
+            panel = panel.child(section("Connections"));
+        }
         for input in 0..descriptor.input_count() {
             let port = descriptor.input(input).expect("declared port");
             let source = self
@@ -189,14 +196,13 @@ impl Editor {
 
 pub(super) fn section(label: &'static str) -> Div {
     div()
-        .mt_2()
-        .py_1()
-        .px_2()
+        .mt_3()
+        .pt_2()
+        .pb_1()
         .text_xs()
-        .font_weight(FontWeight::MEDIUM)
-        .bg(rgb(ELEVATED))
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(rgb(MUTED))
         .border_t_1()
-        .border_b_1()
         .border_color(rgb(BORDER))
         .child(label)
 }

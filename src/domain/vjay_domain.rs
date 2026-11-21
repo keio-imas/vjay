@@ -37,3 +37,5 @@ mod text_value;
 mod file_nodes;
 
 mod video_io_nodes;
+
+mod media_device;

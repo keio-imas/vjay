@@ -22,6 +22,7 @@ struct Source {
     pending_seek: Option<f32>,
     seek: Option<ValueRef>,
     last_seek: bool,
+    seek_revision: u64,
 }
 #[derive(Default)]
 pub struct MediaTimeline {
@@ -67,6 +68,7 @@ impl MediaTimeline {
                 pending_seek: None,
                 seek: None,
                 last_seek: false,
+                seek_revision: 0,
             });
             source.bounds = [binding.looping, binding.start, binding.end]
                 .map(|p| p.and_then(|i| signals.parameter(node.id, i)));
@@ -102,6 +104,7 @@ impl MediaTimeline {
             };
             let moved = seek_now || position != source.last_position || window != source.window;
             if moved {
+                source.seek_revision = source.seek_revision.wrapping_add(1);
                 source.base = 0.0;
                 source.last_position = position;
             }
@@ -112,6 +115,11 @@ impl MediaTimeline {
             }
             source.ready = available;
         }
+    }
+    pub fn seek_revision(&self, node: NodeId) -> u64 {
+        self.indices
+            .get(&node)
+            .map_or(0, |&i| self.sources[i].seek_revision)
     }
     pub fn window(&self, node: NodeId) -> crate::media::PlaybackWindow {
         self.indices
@@ -138,6 +146,7 @@ impl MediaTimeline {
                 source.base =
                     (target as f64 * (1.0 - 1e-7) - source.last_position as f64) * (end - start);
                 source.pending_seek = None;
+                source.seek_revision = source.seek_revision.wrapping_add(1);
             }
         }
     }

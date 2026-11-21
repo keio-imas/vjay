@@ -23,3 +23,5 @@ pub mod services;
 pub mod clipboard;
 
 mod file_media;
+
+pub mod preferences;

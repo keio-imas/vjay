@@ -44,9 +44,15 @@ impl Editor {
         editor.search = Some(search);
         editor.playback = Some(cx.spawn(async move |entity, cx| {
             loop {
-                cx.background_executor()
-                    .timer(std::time::Duration::from_micros(16_667))
-                    .await;
+                let interval = match entity.update(cx, |this, _| {
+                    this.session
+                        .as_ref()
+                        .map_or(std::time::Duration::from_millis(16), |s| s.frame_interval())
+                }) {
+                    Ok(interval) => interval,
+                    Err(_) => break,
+                };
+                cx.background_executor().timer(interval).await;
                 if entity
                     .update(cx, |this, cx| {
                         if let Some(session) = this.session.as_mut() {
@@ -68,6 +74,7 @@ impl Editor {
     }
     fn empty(focus: FocusHandle) -> Self {
         Self {
+            settings: None,
             session: None,
             preview: None,
             message: String::new(),

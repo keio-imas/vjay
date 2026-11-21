@@ -276,3 +276,5 @@ mod menus;
 mod studio;
 
 mod viewport;
+
+mod settings;

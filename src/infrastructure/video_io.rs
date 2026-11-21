@@ -1,6 +1,10 @@
 use std::sync::Arc;
 use vjay_application::ports::{Extent, PortResult};
 use vjay_domain::execution::StreamRequest;
+#[cfg(target_os = "macos")]
+pub mod camera;
+#[cfg(target_os = "macos")]
+mod metal;
 pub mod ndi;
 #[cfg(target_os = "windows")]
 pub mod spout;
@@ -31,6 +35,15 @@ pub trait VideoSender {
 }
 /// GPU adapter factories stay behind RenderBackend; the application exchanges StreamRequest only.
 pub trait VideoIoFactory: Send + Sync {
+    fn source_info(&self) -> Vec<vjay_application::preferences::VideoSource> {
+        self.sources()
+            .into_iter()
+            .map(|name| vjay_application::preferences::VideoSource {
+                id: name.clone(),
+                name,
+            })
+            .collect()
+    }
     fn sources(&self) -> Vec<String>;
     fn receiver(
         &self,

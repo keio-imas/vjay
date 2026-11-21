@@ -65,6 +65,19 @@ impl WgpuRenderer {
 }
 
 impl RenderBackend for WgpuRenderer {
+    fn set_vsync(&mut self, enabled: bool) -> PortResult<()> {
+        if let Some(p) = &self.presentation {
+            p.borrow_mut().set_vsync(enabled);
+        }
+        Ok(())
+    }
+    fn video_source_info(&self, provider: &str) -> Vec<vjay_application::preferences::VideoSource> {
+        self.streams
+            .factory
+            .factory(provider)
+            .map(|f| f.source_info())
+            .unwrap_or_default()
+    }
     fn video_sources(&self, provider: &str) -> Vec<String> {
         self.streams
             .factory

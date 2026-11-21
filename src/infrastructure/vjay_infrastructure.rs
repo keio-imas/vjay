@@ -25,3 +25,5 @@ pub mod clipboard;
 pub mod file_collection;
 
 pub mod video_io;
+
+pub mod preferences;

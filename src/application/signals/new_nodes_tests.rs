@@ -47,7 +47,14 @@ fn lip_sync_sets_tempo_nudge_and_phase_and_seeks_again_at_an_unchanged_position(
     let forward = g.add(ids::BUTTON, &f).unwrap();
     let video = g.add(ids::VIDEO, &f).unwrap();
     g.bind_asset(video, AssetId(0), &f).unwrap();
-    for (p, v) in [(1, 150.0), (2, 2.0), (4, 0.2), (5, 10.0), (6, 1.0)] {
+    for (p, v) in [
+        (10, 1.0),
+        (1, 150.0),
+        (2, 2.0),
+        (4, 0.2),
+        (5, 10.0),
+        (6, 1.0),
+    ] {
         g.set_parameter(sync, p, v, &f).unwrap();
     }
     g.set_parameter(beat, 0, 8.25, &f).unwrap();

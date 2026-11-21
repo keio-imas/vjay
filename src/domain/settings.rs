@@ -14,6 +14,8 @@ pub struct NodeSettings {
     pub midi_source: Option<String>,
     /// Namespaced settings owned by extension nodes; old projects may omit them.
     pub properties: std::collections::BTreeMap<String, String>,
+    /// Human-readable labels for opaque property identifiers, such as native devices.
+    pub property_labels: std::collections::BTreeMap<String, String>,
 }
 impl Default for NodeSettings {
     fn default() -> Self {
@@ -27,6 +29,7 @@ impl Default for NodeSettings {
             label: String::new(),
             midi_source: None,
             properties: Default::default(),
+            property_labels: Default::default(),
             shader: DEFAULT_FRAGMENT.into(),
         }
     }
@@ -51,6 +54,11 @@ impl NodeSettings {
                 .properties
                 .iter()
                 .all(|(key, value)| !key.is_empty() && key.len() <= 128 && value.len() <= 4096)
+            && self.property_labels.len() <= 64
+            && self
+                .property_labels
+                .iter()
+                .all(|(key, label)| self.properties.contains_key(key) && label.len() <= 1024)
             && self.key.len() <= 64
             && self.osc_address.len() <= 256
             && self.label.len() <= 256

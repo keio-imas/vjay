@@ -36,6 +36,18 @@ pub struct CapturedFrame {
 }
 
 pub trait RenderBackend {
+    fn set_vsync(&mut self, _: bool) -> PortResult<()> {
+        Ok(())
+    }
+    fn video_source_info(&self, provider: &str) -> Vec<crate::preferences::VideoSource> {
+        self.video_sources(provider)
+            .into_iter()
+            .map(|name| crate::preferences::VideoSource {
+                id: name.clone(),
+                name,
+            })
+            .collect()
+    }
     fn video_sources(&self, _provider: &str) -> Vec<String> {
         vec![]
     }
@@ -73,6 +85,9 @@ pub trait Clock {
 
 /// Abstract factory for a compatible rendering runtime and its time source.
 pub trait RuntimeFactory {
+    fn settings_store(&self) -> std::sync::Arc<dyn crate::preferences::SettingsStore> {
+        std::sync::Arc::new(crate::preferences::MemorySettings::default())
+    }
     fn create_asset_sources(&self) -> std::sync::Arc<dyn crate::asset_sources::AssetSourceFactory> {
         std::sync::Arc::new(crate::asset_sources::DisabledAssetSources)
     }

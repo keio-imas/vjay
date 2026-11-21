@@ -42,6 +42,7 @@ impl Render for Editor {
         if let Some(preview) = &self.preview {
             preview.borrow_mut().set_nodes_hidden(
                 self.perform
+                    || self.settings.is_some()
                     || self.configuration.is_some()
                     || self.insert_menu.is_some()
                     || self.patch_menu.is_some()
@@ -54,7 +55,8 @@ impl Render for Editor {
             );
             preview.borrow_mut().begin_nodes_frame();
             preview.borrow_mut().set_hidden(
-                self.configuration.is_some()
+                self.settings.is_some()
+                    || self.configuration.is_some()
                     || self.palette.is_some()
                     || self.binding_picker.is_some()
                     || self.font_picker.is_some()
@@ -177,6 +179,7 @@ impl Render for Editor {
             .children(self.binding_popup(cx, width, height))
             .children(self.font_popup(cx, width, height))
             .children(self.configuration_popup(cx, width, height))
+            .children(self.settings_popup(cx, width, height))
             .child(
                 canvas(
                     |_, _, _| (),

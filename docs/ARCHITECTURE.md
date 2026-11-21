@@ -273,3 +273,29 @@ Use the [build checks](BUILD.md#verification) and the extension, graph, signal, 
 UI, and native GPU tests. Measure changes against a specified workload and platform.
 Historical results are preserved under [benchmarks](INDEX.md); they are observations from
 individual runs, not claims of optimal or sustained live performance.
+
+## Device settings and manual deck control
+
+`application::preferences` owns validated settings values and the `SettingsStore` port.
+The JSON adapter persists settings atomically outside project documents. `AudioBackend`
+accepts output configuration; CPAL selects the device, rate, buffer, and channel pair.
+A shared atomic gain updates master volume without rebuilding the audio stream. Hardware
+changes invalidate prepared audio routes. Render extent and presentation sync are applied
+through existing rendering ports. The GPUI PAL resolves display UUIDs into native windows.
+`main.rs` injects the settings store and registers each platform's capture adapter.
+
+The Media Device Input node declares an image stream request through the existing video
+I/O abstraction. The macOS adapter uses AVFoundation and a latest-frame mailbox, retaining
+CVPixelBuffer / CVMetalTexture ownership through Metal completion. MPS writes a persistent
+wgpu texture and a shared event orders its use by the render queue. Native capture does not
+read pixels on the CPU; only the native frame wrapper changes each frame. Unsupported
+platforms report adapter unavailability. Device discovery runs when the picker opens,
+rather than during steady rendering. Capture starts asynchronously and is opt-in.
+
+Deck Sync is an open-registry node implementing `Node`, with capability metadata describing
+manual mode, rate, pitch range, cue marker, and the existing Speed / Position / Seek ports.
+The application edits those declared bindings without depending on its concrete type.
+By-ear mode does not depend on BPM. Nudge changes rate temporarily; the shared media timeline
+retains the accumulated phase on release. Relative jog starts at the actual playhead and
+uses an explicit seek pulse, including when returning to an unchanged cue. Optional monitor
+audio follows the same transport. Parameter migration retains the BPM mode of old projects.

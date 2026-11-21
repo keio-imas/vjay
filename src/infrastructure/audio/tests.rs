@@ -62,6 +62,8 @@ fn native_audio_decodes_modulates_pauses_and_releases_device_only_when_connected
     plan.update(&signals, &timeline);
     let mut backend = CpalAudio {
         device_name: String::new(),
+        output: Default::default(),
+        master_volume: Arc::new(std::sync::atomic::AtomicU32::new(1.0f32.to_bits())),
         ffmpeg: "ffmpeg".into(),
         ffprobe: "ffprobe".into(),
         stream: None,
@@ -70,6 +72,13 @@ fn native_audio_decodes_modulates_pauses_and_releases_device_only_when_connected
         playing: Arc::new(AtomicBool::new(false)),
         failed: Arc::new(AtomicBool::new(false)),
     };
+    let (_, native_config, _) = device::configuration(&Default::default()).unwrap();
+    let settings = vjay_application::preferences::AudioSettings {
+        sample_rate: native_config.sample_rate.0,
+        volume: 0.0,
+        ..Default::default()
+    };
+    backend.configure(&settings).unwrap();
     assert!(backend.stream.is_none());
     backend
         .prepare(
@@ -116,6 +125,40 @@ fn native_audio_decodes_modulates_pauses_and_releases_device_only_when_connected
             .consumed
             .load(Ordering::Acquire)
     );
+    let epoch = backend.sources[0]
+        .worker
+        .shared
+        .epoch
+        .load(Ordering::Acquire);
+    graph.set_parameter(video, 5, 1.0, &f).unwrap();
+    signals.rebuild(&graph, &f).unwrap();
+    timeline.rebuild(&graph, &signals).unwrap();
+    signals.tick(0.01);
+    timeline.tick(0.01, &signals);
+    plan.update(&signals, &timeline);
+    backend.update(&plan, true).unwrap();
+    assert_eq!(
+        backend.sources[0]
+            .worker
+            .shared
+            .epoch
+            .load(Ordering::Acquire),
+        epoch + 1,
+        "an unchanged cue must still seek the monitored audio"
+    );
+    graph.set_parameter(video, 5, 0.0, &f).unwrap();
+    let settings = vjay_application::preferences::AudioSettings {
+        volume: 0.5,
+        ..settings
+    };
+    backend.configure(&settings).unwrap();
+    assert!(backend.stream.is_some());
+    let invalid = vjay_application::preferences::AudioSettings {
+        device: "VJAY nonexistent test device".into(),
+        ..settings
+    };
+    assert!(backend.configure(&invalid).is_err());
+    assert!(backend.stream.is_some());
     // Exercise the real CPAL callback under the same 60 Hz Position modulation.
     // Volume stays zero: this validates the device path without emitting sound.
     let lfo = graph.add(ids::LFO, &f).unwrap();

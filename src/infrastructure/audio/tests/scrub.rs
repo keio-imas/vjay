@@ -107,6 +107,8 @@ fn lfo_position_at_60hz_does_not_starve_audio_when_decoder_startup_is_slower_tha
         mixer::SourceConsumer::new(output, worker.shared.clone(), worker.sample_rate);
     let mut backend = CpalAudio {
         device_name: String::new(),
+        output: Default::default(),
+        master_volume: Arc::new(std::sync::atomic::AtomicU32::new(1.0f32.to_bits())),
         ffmpeg: clip.decoder.clone(),
         ffprobe: "ffprobe".into(),
         stream: None,
@@ -115,6 +117,7 @@ fn lfo_position_at_60hz_does_not_starve_audio_when_decoder_startup_is_slower_tha
             node: video,
             worker,
             position: f32::NAN,
+            seek_revision: 0,
         }],
         keys: vec![(video, AssetId(0))],
         playing: Arc::new(AtomicBool::new(false)),

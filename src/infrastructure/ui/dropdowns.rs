@@ -111,10 +111,12 @@ impl Editor {
         let selector = owned.clone();
         div()
             .flex()
-            .flex_col()
-            .gap_1()
+            .items_center()
+            .gap_2()
             .child(
                 div()
+                    .w(px(104.0))
+                    .flex_shrink_0()
                     .text_xs()
                     .text_color(rgb(MUTED))
                     .child(label.to_owned()),
@@ -125,6 +127,8 @@ impl Editor {
                     value.to_owned(),
                 )
                 .debug_selector(move || format!("property-choice-{selector}"))
+                .flex_1()
+                .min_w_0()
                 .flex()
                 .items_center()
                 .text_xs()

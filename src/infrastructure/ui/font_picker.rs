@@ -9,6 +9,7 @@ pub(super) struct FontPicker {
     title: String,
     search: Entity<text_field::TextField>,
     names: Vec<String>,
+    values: Vec<String>,
     matches: Vec<usize>,
     screen: Position,
 }
@@ -40,7 +41,9 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let names = self.session().video_sources(provider);
+        let info = self.session().video_source_info(provider);
+        let names = info.iter().map(|s| s.name.clone()).collect();
+        let values = info.into_iter().map(|s| s.id).collect();
         self.open_choice_picker(
             Target::Property(node, key),
             "Video source (reopen to refresh)",
@@ -48,6 +51,9 @@ impl Editor {
             window,
             cx,
         );
+        if let Some(p) = &mut self.font_picker {
+            p.values = values;
+        }
     }
     pub(super) fn open_monitor_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let mut names = vec!["System default".into()];
@@ -83,6 +89,7 @@ impl Editor {
             target,
             title: title.into(),
             search,
+            values: names.clone(),
             names,
             matches,
             screen: position(window.mouse_position()),
@@ -138,6 +145,7 @@ impl Editor {
                             range
                                 .map(|i| {
                                     let name = p.names[p.matches[i]].clone();
+                                    let value = p.values[p.matches[i]].clone();
                                     let target = p.target.clone();
                                     div()
                                         .id(i)
@@ -158,6 +166,8 @@ impl Editor {
                                                     {
                                                         let mut s = n.settings.clone();
                                                         s.properties
+                                                            .insert(key.clone(), value.clone());
+                                                        s.property_labels
                                                             .insert(key.clone(), name.clone());
                                                         let r = this
                                                             .session_mut()

@@ -39,10 +39,21 @@ impl Editor {
         };
         let editor = cx.entity();
         let extent = self.output_extent.clone();
-        let bounds = Bounds::centered(None, size(px(960.0), px(540.0)), cx);
+        let settings = self.session().preferences().video.clone();
+        let display = cx
+            .displays()
+            .into_iter()
+            .find(|d| d.uuid().is_ok_and(|id| id.to_string() == settings.display));
+        let display_id = display.as_ref().map(|d| d.id());
+        let bounds = Bounds::centered(display_id, size(px(960.0), px(540.0)), cx);
         let opened = cx.open_window(
             WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                window_bounds: Some(if settings.fullscreen {
+                    WindowBounds::Fullscreen(bounds)
+                } else {
+                    WindowBounds::Windowed(bounds)
+                }),
+                display_id,
                 titlebar: Some(TitlebarOptions {
                     title: Some(format!("VJAY · Output #{}", source.0).into()),
                     ..Default::default()

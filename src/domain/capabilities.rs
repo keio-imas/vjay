@@ -68,7 +68,15 @@ pub enum SettingEditor {
     Osc,
 }
 #[derive(Clone, Copy, Debug)]
+pub struct ManualSyncBinding {
+    pub mode: usize,
+    pub rate: usize,
+    pub range: usize,
+    pub marker: usize,
+}
+#[derive(Clone, Copy, Debug)]
 pub struct TempoSyncBinding {
+    pub manual: Option<ManualSyncBinding>,
     pub clip_bpm: usize,
     pub dj_bpm: usize,
     pub trim: usize,

@@ -23,6 +23,7 @@ pub trait NodePreviewFactory {
 }
 
 pub trait GpuPresentation {
+    fn set_vsync(&mut self, _enabled: bool) {}
     fn set_preview_regions(&mut self, _regions: &[PreviewRegion]) {}
     fn set_node_regions(
         &mut self,
