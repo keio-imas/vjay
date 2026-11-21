@@ -219,6 +219,8 @@ unsafe lifetime management stay inside these adapters. View work runs on the mai
 and surfaces are released before their native layers.
 
 On Windows, `WindowsGpuPreview` owns a Win32 child HWND and a DX12 wgpu swapchain.
+Every raw surface target supplies the Win32 window handle and the resource-free
+Windows display handle; shared instances need not own a display handle themselves.
 Program, per-node, and independent output viewports share the VJ device and queue;
 GPUI retains its own UI renderer. The composition root injects the Windows factories
 through the same presentation interfaces as macOS. Logical coordinates are converted

@@ -115,6 +115,25 @@ fn child_clipping_and_hit_testing_keep_patch_input_on_the_parent() {
 }
 
 #[test]
+#[ignore = "requires a Windows desktop and DX12 runtime; no GPU adapter or device is requested"]
+fn surface_creation_supplies_display_for_shared_instances_without_a_gpu_device() {
+    let mut host = Host::new();
+    let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
+    descriptor.backends = wgpu::Backends::DX12;
+    assert!(descriptor.display.is_none());
+    let instance = wgpu::Instance::new(descriptor);
+    let first = WindowsGpuPreview::attach_host(host.0, instance.clone())
+        .expect("A Win32 surface must supply its display handle when the instance has none");
+    let second = WindowsGpuPreview::attach_host(host.0, instance)
+        .expect("Additional viewports must work with the same instance and Windows display");
+    assert!(first.window.state.gpu.borrow().is_some());
+    assert!(second.window.state.gpu.borrow().is_some());
+    host.close();
+    assert!(first.window.state.gpu.borrow().is_none());
+    assert!(second.window.state.gpu.borrow().is_none());
+}
+
+#[test]
 #[ignore = "requires a Windows desktop and DX12 GPU; exercises two swapchains, DPI changes and teardown"]
 fn dx12_previews_share_a_queue_and_release_the_swapchain_before_parent_destruction() {
     let mut host = Host::new();

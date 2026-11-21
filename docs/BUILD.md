@@ -84,8 +84,9 @@ and camera input remain unimplemented. The Windows movie path uses FFmpeg CPU de
 and GPU upload. Native Windows builds and presentation tests cannot run in this macOS
 development environment.
 The `windows-build` CI job builds the locked Release binary with the MSVC toolchain,
-runs strict Clippy, and checks viewport coordinates and Win32 clipping/input/lifetime
-behavior. It does not test DX12 presentation or attached devices.
+runs strict Clippy, and checks viewport coordinates, Win32 clipping/input/lifetime
+behavior, and DX12 surface creation without requesting a GPU device. It does not
+test swapchain presentation or attached devices.
 
 ### GPUI: `Failed to find fxc.exe`
 
@@ -140,6 +141,20 @@ window. A DX12-capable GPU and working driver are required. An old executable th
 shows `Native preview unavailable on this platform` uses the former headless Windows
 startup path; rebuild the updated source.
 
+### Initialization: `No DisplayHandle is available`
+
+This error occurs before adapter/device selection when both the wgpu instance and
+raw surface target omit a display handle. The Win32 adapter explicitly supplies
+`DisplayHandle::windows()` together with each child HWND, including additional
+viewports on a shared instance. See the [wgpu surface handle contract](https://docs.rs/wgpu/30.0.2/wgpu/enum.SurfaceTargetUnsafe.html#variant.RawHandle).
+
+The Windows CI surface-creation regression test exercises this initialization path
+with two viewports, without requiring a physical GPU or creating a GPU device:
+
+```powershell
+cargo test -p vjay-infrastructure --lib desktop::windows::tests::surface_creation --locked -- --ignored --test-threads=1
+```
+
 Native regression tests create only their own windows and check clipping, mouse hit
 testing, shared GPU presentation, DPI changes, and parent-window teardown:
 
@@ -157,8 +172,7 @@ Windows build target. Cross-checking does not validate native DX12 display behav
 the former unavailable-preview placeholder. LNK4099 means a dependency's debugging
 information is unavailable; the linker still produces the executable. See
 [Microsoft's LNK4099 reference](https://learn.microsoft.com/en-us/cpp/error-messages/tool-errors/linker-tools-warning-lnk4099?view=msvc-170).
-Rendering
-failures appear in the application status or as runtime errors after startup.
+Rendering failures appear in the application status or as runtime errors after startup.
 
 ## Camera access on macOS
 

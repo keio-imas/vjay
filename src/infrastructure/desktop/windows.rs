@@ -8,7 +8,7 @@ mod window;
 
 use crate::gpu::presentation::{GpuPresentation, PreviewBounds, PreviewRegion};
 pub use factories::{WindowsNodePreviewFactory, WindowsOutputFactory};
-use raw_window_handle::{RawWindowHandle, Win32WindowHandle};
+use raw_window_handle::{DisplayHandle, RawWindowHandle, Win32WindowHandle};
 use std::num::NonZeroIsize;
 use vjay_application::ports::PortResult;
 use window::ChildWindow;
@@ -43,7 +43,9 @@ impl WindowsGpuPreview {
         // Win32 destroys its HWND, including when its GPUI parent closes first.
         let surface = unsafe {
             instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
-                raw_display_handle: None,
+                // Windows display handles borrow no external resources. wgpu 30
+                // requires one here when the instance has no display of its own.
+                raw_display_handle: Some(DisplayHandle::windows().as_raw()),
                 raw_window_handle: RawWindowHandle::Win32(Win32WindowHandle::new(handle)),
             })
         }
