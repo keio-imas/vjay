@@ -1,6 +1,8 @@
 use std::ffi::{c_char, c_void};
 pub(super) type Raw = *mut c_void;
 unsafe extern "C" {
+    pub fn vjay_movie_batch_begin(context: Raw);
+    pub fn vjay_movie_batch_end(context: Raw);
     pub fn vjay_movie_context_create(
         device: Raw,
         queue: Raw,
@@ -34,7 +36,8 @@ impl Drop for Handle {
     }
 }
 pub(super) struct Context(pub Raw);
-// CVMetalTextureCache and immutable Metal pipelines support concurrent clients.
+// Decoder workers use the thread-safe texture cache and immutable pipeline.
+// Batch mutation is confined to the one GPU producer that owns Runtime/decoders.
 unsafe impl Send for Context {}
 unsafe impl Sync for Context {}
 impl Drop for Context {

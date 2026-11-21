@@ -1,5 +1,11 @@
 # Third-party dependencies and licenses
 
+- The GPUI frontend uses Apache-2.0-licensed `gpui-pre` and `gpui-pre-platform`,
+  pinned to `0.3.13` (upstream Zed revision
+  `125ca8672e928b19a62c2e4b761fb29fe2a34ae3`). Longbridge publishes these snapshots
+  of Zed's GPUI; upstream license and notice files remain applicable. See the
+  [published package](https://docs.rs/crate/gpui-pre/0.3.13) and
+  [upstream license](https://github.com/zed-industries/zed/blob/main/crates/gpui/LICENSE-APACHE).
 - `rusty_link 0.4.9` embeds the Ableton Link SDK. The binding and SDK are offered under
   GPL-2.0-or-later, with a commercial license option from Ableton. The project source's
   `license = "MIT"` does not replace these terms for a linked binary. A proprietary

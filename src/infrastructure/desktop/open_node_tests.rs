@@ -43,6 +43,7 @@ impl Node for Extension {
     }
     fn image(&self, p: &[f32], _: &NodeSettings, _: usize) -> Option<ImageKernel> {
         Some(ImageKernel {
+            external_passthrough: false,
             shader: ShaderSource::Registered(if p[0] > 0.5 { ALTERNATE } else { PROGRAM }),
             selector: 0.0,
             parameters: vec![p[0], 0.5, 0.75, 0.0],

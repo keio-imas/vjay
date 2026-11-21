@@ -87,7 +87,7 @@ impl Editor {
                             let Some(bounds) = seek_bounds.get() else {
                                 return;
                             };
-                            window.focus(&this.focus);
+                            window.focus(&this.focus, cx);
                             this.drag = Some(Drag::MediaSeek(
                                 video,
                                 f32::from(bounds.origin.x),
@@ -121,7 +121,7 @@ impl Editor {
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |this, e: &MouseDownEvent, w, cx| {
-                            w.focus(&this.focus);
+                            w.focus(&this.focus, cx);
                             this.drag = Some(Drag::MediaJog(video, position(e.position)));
                             cx.stop_propagation();
                             cx.notify();
@@ -210,7 +210,7 @@ impl Editor {
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |this, e: &MouseDownEvent, w, cx| {
-                            w.focus(&this.focus);
+                            w.focus(&this.focus, cx);
                             this.drag = Some(Drag::Value(parameter_drag::ValueDrag::new(
                                 sync,
                                 parameter,

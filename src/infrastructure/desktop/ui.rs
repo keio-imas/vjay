@@ -2,7 +2,7 @@ use crate::platform::SharedPreview;
 use gpui::{
     Bounds, Context, Div, ElementId, Entity, ExternalPaths, FocusHandle, FontWeight, KeyDownEvent,
     KeyUpEvent, MouseButton, MouseDownEvent, MouseMoveEvent, PathBuilder, PathPromptOptions,
-    Pixels, Point, ScrollWheelEvent, SharedString, Stateful, Task, TitlebarOptions, Window,
+    Pixels, Point, ScrollEvent, SharedString, Stateful, Task, TitlebarOptions, Window,
     WindowBounds, WindowHandle, WindowOptions, canvas, div, point, prelude::*, px, relative, rgb,
     size,
 };
@@ -35,6 +35,7 @@ mod output;
 mod palette;
 mod panels;
 mod parameter_drag;
+mod project_io;
 mod projects;
 mod rendering;
 mod selection;
@@ -86,6 +87,7 @@ pub struct Editor {
     outputs: Option<std::rc::Rc<dyn crate::platform::OutputFactory>>,
     output_windows: Vec<(NodeId, WindowHandle<output::OutputRoot>)>,
     playback: Option<Task<()>>,
+    project_io_busy: bool,
     focus: FocusHandle,
     output_extent: std::rc::Rc<std::cell::Cell<vjay_application::ports::Extent>>,
     search: Option<Entity<text_field::TextField>>,

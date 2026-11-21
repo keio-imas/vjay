@@ -133,7 +133,7 @@ impl Editor {
                 cx,
             )
         });
-        window.focus(&input.read(cx).focus);
+        window.focus(&input.read(cx).focus.clone(), cx);
         self.configuration = Some(Configuration {
             target,
             input,
@@ -277,9 +277,9 @@ impl Editor {
                 .child(div().id("configuration-text").max_h(px(if shader{height-240.0}else{100.0})).overflow_y_scroll().child(input.clone()))
                 .when(!config.error.is_empty(),|element|element.child(div().max_h(px(100.0)).overflow_hidden().text_xs().text_color(rgb(0xe79791)).child(config.error.clone())))
                 .child(div().flex().gap_2().justify_end()
-                    .child(button("cancel-configuration","Cancel").on_click(cx.listener(|this,_,window,cx|{this.configuration=None;window.focus(&this.focus);cx.notify();})))
+                    .child(button("cancel-configuration","Cancel").on_click(cx.listener(|this,_,window,cx|{this.configuration=None;window.focus(&this.focus, cx);cx.notify();})))
                     .child(button("apply-configuration",if shader{"Compile & apply"}else{"Apply"}).debug_selector(||"apply-configuration".into()).bg(rgb(ACCENT)).text_color(rgb(BACKGROUND)).on_click(cx.listener(move |this,_,window,cx| {
-                        match this.apply_configuration(input.read(cx).text.clone(),target.clone()){Ok(())=>{this.configuration=None;this.message.clear();window.focus(&this.focus);},Err(error)=>if let Some(config)=this.configuration.as_mut(){config.error=error;}}cx.notify();
+                        match this.apply_configuration(input.read(cx).text.clone(),target.clone()){Ok(())=>{this.configuration=None;this.message.clear();window.focus(&this.focus, cx);},Err(error)=>if let Some(config)=this.configuration.as_mut(){config.error=error;}}cx.notify();
                     })))))
             .into_any_element())
     }

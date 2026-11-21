@@ -29,8 +29,9 @@ impl Session {
         // different shader or bake a parameter into otherwise static resources.
         let record = self.project.graph.node(node).map_err(|e| e.to_string())?;
         let definition = self.nodes.get(&record.type_id)?;
-        let dynamic =
-            self.plan.as_ref().is_some_and(|plan| {
+        let dynamic = !self.dirty
+            && self.valid
+            && self.plan.as_ref().is_some_and(|plan| {
                 plan.steps.iter().filter(|s| s.node == node).all(|step| {
                     let old = &step.operation;
                     let Some(next) =
@@ -38,7 +39,8 @@ impl Session {
                     else {
                         return false;
                     };
-                    old.prepared.is_none()
+                    old.external_passthrough == next.external_passthrough
+                        && old.prepared.is_none()
                         && old.parameter_slots.contains(&Some(parameter))
                         && old.shader == next.shader
                         && old.selector == next.selector
@@ -62,7 +64,7 @@ impl Session {
             // Selection ports can launch a file job immediately; do not add an
             // extra render-frame delay just because bindings stayed intact.
             self.asset_sources.tick(&self.signals);
-            self.modified.set(true);
+            self.mark_modified();
         } else {
             self.invalidate(false);
         }

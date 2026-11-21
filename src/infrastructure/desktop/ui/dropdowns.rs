@@ -50,7 +50,7 @@ impl Editor {
             e.on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _, window, cx| {
-                    window.focus(&this.focus);
+                    window.focus(&this.focus, cx);
                     let r = this.session_mut().set_parameter(node, parameter, 1.0);
                     this.apply(r);
                     cx.stop_propagation();
@@ -245,7 +245,7 @@ impl Editor {
                     this.parameter_menu = None;
                     cx.notify();
                 }))
-                .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
+                .on_scroll(|_, _, cx| cx.stop_propagation())
                 .children(
                     choices
                         .into_iter()

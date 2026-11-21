@@ -140,7 +140,43 @@ impl NativeMovie {
         })
     }
 }
+impl NativeMovie {
+    fn encode_cached(&mut self, key: u64, queue: &wgpu::Queue) -> PortResult<bool> {
+        if !unsafe {
+            ffi::vjay_movie_encode(
+                self.handle.0,
+                key,
+                Retained::as_ptr(&self.fence.event).cast_mut().cast(),
+                self.fence.value,
+            )
+        } {
+            return Ok(false);
+        }
+        self.fence.wait_in_wgpu(queue)?;
+        self.delivered = Some(key);
+        self.frames += 1;
+        Ok(true)
+    }
+}
 impl crate::gpu::GpuVideoDecoder for NativeMovie {
+    fn request_frame(&mut self, seconds: f64) -> PortResult<()> {
+        if !seconds.is_finite() {
+            return Err("Invalid video playhead".into());
+        }
+        let fps = unsafe { ffi::vjay_movie_fps(self.handle.0) };
+        // Normalized controls use f32. Snap only sub-frame rounding noise at
+        // exact frame boundaries; do not round ordinary playback up a frame.
+        let key = (seconds.max(0.0) * fps + 1e-4).floor() as u64;
+        if key != self.requested {
+            self.wanted.store(key, Ordering::Release);
+            unsafe { ffi::vjay_movie_request(self.handle.0, key) };
+            if let Some(request) = &self.request {
+                let _ = request.try_send(());
+            }
+            self.requested = key;
+        }
+        Ok(())
+    }
     fn texture(&self) -> &wgpu::Texture {
         &self.texture
     }
@@ -175,23 +211,25 @@ impl crate::gpu::GpuVideoDecoder for NativeMovie {
         delivery: FrameDelivery,
         queue: &wgpu::Queue,
     ) -> PortResult<bool> {
-        if !seconds.is_finite() {
-            return Err("Invalid video playhead".into());
+        self.request_frame(seconds)?;
+        let key = self.requested;
+        let completion = self.completion.0.lock().map_err(|e| e.to_string())?;
+        if let Some(error) = &completion.error {
+            return Err(error.clone());
         }
-        let fps = unsafe { ffi::vjay_movie_fps(self.handle.0) };
-        // Normalized controls use f32. Snap only sub-frame rounding noise at
-        // exact frame boundaries; do not round ordinary playback up a frame.
-        let key = (seconds.max(0.0) * fps + 1e-4).floor() as u64;
-        if key != self.requested {
-            self.wanted.store(key, Ordering::Release);
-            unsafe { ffi::vjay_movie_request(self.handle.0, key) };
-            if let Some(request) = &self.request {
-                let _ = request.try_send(());
-            }
-            self.requested = key;
+        if self.delivered == Some(key) {
+            return Ok(false);
         }
-        let mut completion = self.completion.0.lock().map_err(|e| e.to_string())?;
+        let completed = completion.key;
+        drop(completion);
+        self.fence.value += 1;
         if delivery == FrameDelivery::Exact {
+            // Cached targets need neither a worker wakeup round trip nor a
+            // completion-key change. An encode succeeds only for this key.
+            if self.encode_cached(key, queue)? {
+                return Ok(true);
+            }
+            let mut completion = self.completion.0.lock().map_err(|e| e.to_string())?;
             let (result, timeout) = self
                 .completion
                 .1
@@ -203,29 +241,13 @@ impl crate::gpu::GpuVideoDecoder for NativeMovie {
             if timeout.timed_out() {
                 return Err("Native movie frame timed out".into());
             }
+            if let Some(error) = &completion.error {
+                return Err(error.clone());
+            }
         }
-        if let Some(error) = &completion.error {
-            return Err(error.clone());
-        }
-        if self.delivered == Some(key) {
-            return Ok(false);
-        }
-        let completed = completion.key;
-        drop(completion);
-        self.fence.value += 1;
         let start = Instant::now();
         loop {
-            if unsafe {
-                ffi::vjay_movie_encode(
-                    self.handle.0,
-                    key,
-                    Retained::as_ptr(&self.fence.event).cast_mut().cast(),
-                    self.fence.value,
-                )
-            } {
-                self.fence.wait_in_wgpu(queue)?;
-                self.delivered = Some(key);
-                self.frames += 1;
+            if self.encode_cached(key, queue)? {
                 return Ok(true);
             }
             if delivery == FrameDelivery::Latest {

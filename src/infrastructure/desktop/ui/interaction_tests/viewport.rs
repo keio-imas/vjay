@@ -5,7 +5,7 @@ fn modifier_wheel_zooms_at_cursor_and_preserves_drag_and_socket_hitboxes(cx: &mu
     cx.simulate_resize(size(px(1440.0), px(940.0)));
     let anchor = center(cx, "header-0");
     let world = cx.read(|cx| view.read(cx).world_pointer(position(anchor)).unwrap());
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: anchor,
         delta: gpui::ScrollDelta::Pixels(point(px(0.0), px(2.0_f32.ln() / 0.002))),
         modifiers: Modifiers {
@@ -26,7 +26,7 @@ fn modifier_wheel_zooms_at_cursor_and_preserves_drag_and_socket_hitboxes(cx: &mu
     let width = f32::from(cx.debug_bounds("header-0").unwrap().size.width);
     assert!((width - 398.0).abs() < 3.0);
     // Zoom back out so all original sockets remain in the viewport.
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: anchor,
         delta: gpui::ScrollDelta::Pixels(point(px(0.0), px(0.25_f32.ln() / 0.002))),
         modifiers: Modifiers {

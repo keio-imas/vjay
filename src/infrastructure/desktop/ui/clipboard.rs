@@ -56,7 +56,7 @@ impl Editor {
                     this.patch_menu = None;
                     cx.notify();
                 }))
-                .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
+                .on_scroll(|_, _, cx| cx.stop_propagation())
                 .absolute()
                 .left(px(menu.screen.x.min(width - 180.0).max(0.0)))
                 .top(px(menu.screen.y.min(height - 300.0).max(0.0)))

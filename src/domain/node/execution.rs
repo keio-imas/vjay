@@ -41,6 +41,9 @@ pub struct StreamRequest {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImageKernel {
+    /// The output is identical to the injected full-extent external image.
+    /// Adapters may forward its persistent texture without a render pass.
+    pub external_passthrough: bool,
     pub shader: ShaderSource,
     pub selector: f32,
     pub parameters: Vec<f32>,

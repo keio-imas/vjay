@@ -10,7 +10,7 @@ impl Editor {
    .child(self.deck_transport(video,speed,cx))
    .child(div().flex().gap_2().children([(-1.0,"Nudge −"),(1.0,"Nudge +")].into_iter().enumerate().map(|(i,(value,label))|
     button(SharedString::from(format!("source-nudge-{i}")),label).debug_selector(move||format!("source-nudge-{i}")).flex_1().text_center().bg(rgb(ELEVATED))
-     .on_mouse_down(MouseButton::Left,cx.listener(move|this,_,w,cx|{w.focus(&this.focus);this.drag=Some(Drag::MediaNudge(video));let r=this.session_mut().nudge_clip(video,value);this.apply(r);cx.stop_propagation();cx.notify();}))
+     .on_mouse_down(MouseButton::Left,cx.listener(move|this,_,w,cx|{w.focus(&this.focus, cx);this.drag=Some(Drag::MediaNudge(video));let r=this.session_mut().nudge_clip(video,value);this.apply(r);cx.stop_propagation();cx.notify();}))
      .on_mouse_up(MouseButton::Left,cx.listener(move|this,_,_,cx|{let r=this.session_mut().nudge_clip(video,0.0);this.apply(r);cx.notify();}))
      .on_mouse_up_out(MouseButton::Left,cx.listener(move|this,_,_,cx|{let r=this.session_mut().nudge_clip(video,0.0);this.apply(r);cx.notify();})))))
    .child(div().text_xs().text_color(rgb(MUTED)).child("Connect buttons, Keyboard, MIDI or OSC to this node's transport inputs. Nudge is ±2% while held."))

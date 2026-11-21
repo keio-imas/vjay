@@ -134,7 +134,7 @@ impl Editor {
             menu: None,
             error: String::new(),
         });
-        window.focus(&self.focus);
+        window.focus(&self.focus, cx);
         cx.notify();
     }
     fn apply_settings(&mut self, close: bool, cx: &mut Context<Self>) {
@@ -186,7 +186,7 @@ impl Editor {
                 .items_center()
                 .justify_center()
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
+                .on_scroll(|_, _, cx| cx.stop_propagation())
                 .child(
                     div()
                         .w(px(860.0_f32.min(width - 48.0)))
@@ -215,7 +215,7 @@ impl Editor {
                                 .child(button("close-settings", "×").on_click(cx.listener(
                                     |this, _, w, cx| {
                                         this.settings = None;
-                                        w.focus(&this.focus);
+                                        w.focus(&this.focus, cx);
                                         cx.notify();
                                     },
                                 ))),
@@ -295,7 +295,7 @@ impl Editor {
                                 .child(button("cancel-settings", "Cancel").on_click(cx.listener(
                                     |this, _, w, cx| {
                                         this.settings = None;
-                                        w.focus(&this.focus);
+                                        w.focus(&this.focus, cx);
                                         cx.notify();
                                     },
                                 )))

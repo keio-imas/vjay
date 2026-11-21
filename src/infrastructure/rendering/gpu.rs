@@ -20,8 +20,7 @@ pub struct GpuContext {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
 }
-mod prepared;
-mod stills;
+mod images;
 #[derive(Clone, Default)]
 pub(super) struct RendererAdapters {
     native_video: video::source::NativeFactory,
@@ -34,6 +33,7 @@ mod video;
 pub use video::source::{GpuVideoDecoder, GpuVideoFactory, GpuVideoRuntime};
 
 pub struct WgpuRuntimeFactory {
+    trace: Option<Arc<dyn vjay_application::ports::telemetry::FrameTrace>>,
     settings: Option<Arc<dyn vjay_application::preferences::SettingsStore>>,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -49,6 +49,13 @@ pub struct WgpuRuntimeFactory {
 }
 
 impl WgpuRuntimeFactory {
+    pub fn with_frame_trace(
+        mut self,
+        trace: Option<Arc<dyn vjay_application::ports::telemetry::FrameTrace>>,
+    ) -> Self {
+        self.trace = trace;
+        self
+    }
     pub fn with_gpu_video(mut self, factory: Option<Arc<dyn GpuVideoFactory>>) -> Self {
         self.images.native_video = factory;
         self
@@ -58,16 +65,7 @@ impl WgpuRuntimeFactory {
         media: Arc<dyn VideoDecoderFactory>,
         programs: Arc<programs::ShaderPrograms>,
     ) -> PortResult<Self> {
-        let adapter = {
-            let p = presentation.borrow();
-            pollster::block_on(p.instance().request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: Some(p.surface()),
-                force_fallback_adapter: false,
-                ..Default::default()
-            }))
-            .map_err(|e| e.to_string())?
-        };
+        let adapter = presentation.borrow().request_adapter()?;
         let info = adapter.get_info();
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("vjay desktop device"),
@@ -83,6 +81,7 @@ impl WgpuRuntimeFactory {
             queue: queue.clone(),
         };
         Ok(Self {
+            trace: None,
             device,
             queue,
             description,
@@ -136,6 +135,7 @@ impl WgpuRuntimeFactory {
                 queue: queue.clone(),
             };
             Ok(Self {
+                trace: None,
                 device,
                 queue,
                 presentation: None,
@@ -197,6 +197,9 @@ impl WgpuRuntimeFactory {
 }
 
 impl RuntimeFactory for WgpuRuntimeFactory {
+    fn frame_trace(&self) -> Option<Arc<dyn vjay_application::ports::telemetry::FrameTrace>> {
+        self.trace.clone()
+    }
     fn settings_store(&self) -> Arc<dyn vjay_application::preferences::SettingsStore> {
         self.settings
             .clone()

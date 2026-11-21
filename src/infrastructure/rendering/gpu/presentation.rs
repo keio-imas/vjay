@@ -66,7 +66,9 @@ pub trait GpuPresentation {
     }
     fn set_hidden(&mut self, _hidden: bool) {}
     fn instance(&self) -> &wgpu::Instance;
-    fn surface(&self) -> &wgpu::Surface<'static>;
+    /// Select a compatible adapter while the native surface is alive.
+    /// Native windows may release their surfaces synchronously during destruction.
+    fn request_adapter(&self) -> PortResult<wgpu::Adapter>;
     fn initialize(&mut self, device: &wgpu::Device, adapter: &wgpu::Adapter) -> PortResult<()>;
     fn prepare(&mut self, device: &wgpu::Device, image: &wgpu::TextureView) -> PortResult<()>;
     fn set_bounds(&mut self, bounds: PreviewBounds);

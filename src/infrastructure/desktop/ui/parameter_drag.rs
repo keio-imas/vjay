@@ -104,7 +104,7 @@ impl Editor {
                     if let Some(id) = control {
                         this.focus_control(id, window, cx);
                     } else {
-                        window.focus(&this.focus);
+                        window.focus(&this.focus, cx);
                     }
                     this.drag = Some(Drag::Value(drag.at(position(event.position))));
                     cx.stop_propagation();

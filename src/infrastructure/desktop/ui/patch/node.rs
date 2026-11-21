@@ -49,7 +49,7 @@ impl Editor {
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                    window.focus(&this.focus);
+                    window.focus(&this.focus, cx);
                     if !this.selection.contains(id) {
                         this.select_node(id, event, window, cx);
                     }
@@ -152,7 +152,7 @@ impl Editor {
                         .on_mouse_down(
                             MouseButton::Right,
                             cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                                window.focus(&this.focus);
+                                window.focus(&this.focus, cx);
                                 if !this.selection.contains(id) {
                                     this.select_node(id, event, window, cx);
                                 }

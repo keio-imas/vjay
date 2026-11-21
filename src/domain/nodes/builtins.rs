@@ -51,6 +51,7 @@ impl Node for ImageNode {
             parameters[0] = output as f32;
         }
         Some(ImageKernel {
+            external_passthrough: matches!(self.selector, 3.0 | 20.0),
             shader: ShaderSource::Registered("vjay.images.v1"),
             selector: self.selector,
             parameters,

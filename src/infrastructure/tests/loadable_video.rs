@@ -1,3 +1,5 @@
+#![cfg(target_os = "macos")]
+
 use std::sync::Arc;
 use vjay_application::{ports::*, project::Point, session::Session};
 use vjay_domain::{builtins::registry, graph::Connection};
@@ -8,7 +10,6 @@ use vjay_infrastructure::{
 
 #[test]
 #[ignore = "requires macOS VideoToolbox, ffmpeg, and a native GPU"]
-#[cfg(target_os = "macos")]
 fn folder_video_switches_on_click_index_and_signal_using_hardware_decoding() {
     let directory = tempfile::tempdir().unwrap();
     for (name, color) in [("a.mp4", "red"), ("b.mp4", "blue")] {

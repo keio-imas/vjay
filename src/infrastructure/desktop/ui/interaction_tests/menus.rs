@@ -63,7 +63,7 @@ fn insert_menu_scroll_does_not_pan_the_patch_and_can_reach_its_last_item(cx: &mu
     cx.simulate_mouse_up(at, MouseButton::Right, Modifiers::none());
     let menu = center(cx, "insert-menu");
     let before = cx.read(|cx| view.read(cx).pan);
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: menu,
         delta: gpui::ScrollDelta::Pixels(point(px(0.0), px(-100000.0))),
         ..Default::default()

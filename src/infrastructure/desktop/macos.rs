@@ -113,8 +113,14 @@ impl GpuPresentation for MacGpuPreview {
     fn instance(&self) -> &wgpu::Instance {
         &self.instance
     }
-    fn surface(&self) -> &wgpu::Surface<'static> {
-        &self.surface
+    fn request_adapter(&self) -> PortResult<wgpu::Adapter> {
+        pollster::block_on(self.instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface: Some(&self.surface),
+            force_fallback_adapter: false,
+            ..Default::default()
+        }))
+        .map_err(|e| e.to_string())
     }
     fn initialize(&mut self, device: &wgpu::Device, adapter: &wgpu::Adapter) -> PortResult<()> {
         let mut config = self

@@ -240,7 +240,7 @@ fn multiline_shader_editor_handles_unicode_selection_and_vertical_navigation(
 ) {
     let (view, cx) = cx.add_window_view(|window, cx| {
         let field = text_field::TextField::new("aあ\n123\nxy".into(), true, cx);
-        window.focus(&field.focus);
+        window.focus(&field.focus, cx);
         field
     });
     cx.simulate_resize(size(px(600.0), px(400.0)));

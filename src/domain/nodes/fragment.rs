@@ -52,6 +52,7 @@ impl Node for FragmentNode {
             shader.push('\n');
         }
         Some(ImageKernel {
+            external_passthrough: false,
             shader: ShaderSource::Glsl(shader),
             selector: 20.0,
             parameters: values.to_vec(),

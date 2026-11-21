@@ -26,7 +26,8 @@ impl WgpuRenderer {
         let bytes = extent.width as u64
             * extent.height as u64
             * 4
-            * (plan.texture_count + source_count) as u64;
+            * (plan.texture_count + source_count
+                - plan.steps.iter().filter(|s| s.external_source()).count()) as u64;
         if required_videos > 8 {
             return Err("At most eight simultaneous video sources are supported".into());
         }
@@ -49,23 +50,30 @@ impl WgpuRenderer {
             self.video.take(),
             self.native_video.as_deref_mut(),
         )?;
-        self.stills.prepare(
-            (&self.device, &self.queue),
-            plan,
-            extent,
-            &self.assets,
-            self.image_loaders.files.as_deref(),
-            &mut video.views,
-        )?;
-        self.prepared_images.prepare(
-            (&self.device, &self.queue),
-            plan,
-            extent,
-            self.image_loaders.generated.as_deref(),
-            &mut video.views,
-        )?;
+        self.images
+            .prepare(&self.device, plan, extent, &self.assets, &mut video.views)?;
         self.streams
             .prepare(&self.device, &self.queue, plan, extent, &mut video.views)?;
+        let aliases = plan
+            .steps
+            .iter()
+            .enumerate()
+            .filter(|(i, s)| {
+                s.external_source()
+                    && video.views[*i]
+                        .as_ref()
+                        .is_some_and(|t| super::super::resources::can_forward(t, extent))
+            })
+            .count();
+        let actual_bytes = extent.width as u64
+            * extent.height as u64
+            * 4
+            * (plan.texture_count + source_count - aliases) as u64;
+        if actual_bytes > 512 * 1024 * 1024 {
+            return Err(
+                "Patch exceeds the 512 MiB texture budget; lower the output resolution".into(),
+            );
+        }
         let candidate = Resources::new(&self.device, &self.layout, plan, extent, &video.views);
         let validation = pollster::block_on(validation_scope.pop());
         let memory = pollster::block_on(memory_scope.pop());

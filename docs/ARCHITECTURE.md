@@ -156,6 +156,11 @@ On a relevant edit, the compiler:
 3. Validates required inputs and obtains kernels in topological order.
 4. Computes the final use of intermediate images and assigns reusable texture slots.
 5. Resolves parameters, scalar values, text, file signals, and audio routes to slots.
+6. Reserves dedicated slots for kernels that declare an external identity transfer.
+   The renderer forwards a compatible source texture instead of copying it through a
+   fragment pass. This is an open kernel contract, independent of concrete node IDs.
+   Persistent source slots never enter the transient pool: decoders update them before
+   graph execution, so reusing one for an earlier pass would overwrite the new frame.
 
 Topological sorting is O(V + E). Input binding construction is O(V + K + E), where K is
 the total number of input slots. Definition lookup is linear in registered types and
@@ -178,6 +183,12 @@ port numbers, parameters, and control references when loading existing projects.
 
 Restore validates IDs, assets, finite values, bounds, wires, cycles, controls, and layout
 before replacing the active project. Open failures preserve the current patch and location.
+The GPUI file workflow creates application-owned requests, executes `ProjectFiles` on its
+background executor, and commits validated results on the main thread. A project epoch and
+edit revision prevent late completions from adopting another project's path or clearing newer
+edits. Save-before-close proceeds only when the saved revision is still current. Opening a
+file preserves edits made while its data was being read. Only one file operation runs per editor.
+The synchronous use cases remain available for explicit headless callers and tests.
 Save As changes the active path only after a successful save. JSON writes use a temporary
 file, synchronization, and rename in the destination directory; the document limit is 64 MiB.
 
@@ -194,10 +205,29 @@ encoding remain infrastructure responsibilities.
 Infrastructure implements application ports with GPUI, wgpu, FFmpeg, CPAL, MIDI, OSC,
 JSON storage, and native SDKs. Only this layer and the composition root know platform APIs.
 
+The desktop adapter uses the upstream GPUI snapshot distributed as `gpui-pre`, with
+`gpui-pre-platform` selecting the host windowing and text systems. Both dependencies
+are pinned to the same exact version, `0.3.13`, with transitive versions recorded in
+`Cargo.lock`. Backend features belong to infrastructure dependencies, and desktop
+startup calls `gpui_platform::application()`. Domain and application have no GPUI
+dependencies or platform-selection branches. Snapshot upgrades are explicit changes
+that require UI interaction and native presentation verification.
+
 `GpuPresentation` is the presentation PAL inside the rendering adapter. On macOS, native
 adapters own the GPUI child `NSView`, `CAMetalLayer`, and wgpu surface. Native handles and
 unsafe lifetime management stay inside these adapters. View work runs on the main thread,
 and surfaces are released before their native layers.
+
+On Windows, `WindowsGpuPreview` owns a Win32 child HWND and a DX12 wgpu swapchain.
+Program, per-node, and independent output viewports share the VJ device and queue;
+GPUI retains its own UI renderer. The composition root injects the Windows factories
+through the same presentation interfaces as macOS. Logical coordinates are converted
+using the window's DPI scale, and cached native regions clip overlapping node previews.
+The child returns `HTTRANSPARENT` for hit testing so graph interaction remains with
+GPUI. Its `WM_DESTROY` callback releases pending frames and the surface before the HWND
+is destroyed, even if GPUI closes the parent before dropping the presentation owner.
+Adapter selection stays inside the presentation PAL so a borrowed surface cannot
+escape this lifetime boundary. Rendering does not read pixels back to the CPU.
 
 `PresentationGroup` registers output windows by source node ID and keeps weak references
 to presentations. All windows share the GPU device and the compiled plan. Shared branches
@@ -208,9 +238,12 @@ Node previews use the same GPU context. They are encoded after the corresponding
 and clipped to visible patch regions. Scrolling, overlap masks, and panel bounds belong
 to UI layout, not domain graph coordinates.
 
-Native desktop presentations are implemented and validated on macOS. Equivalent Windows
-and Linux presentation PALs are not implemented. The Windows Spout adapter does not imply
-a complete Windows desktop application.
+Native desktop presentations are validated on macOS. The Windows presentation PAL is
+implemented, with native tests for clipping, input routing, shared GPU presentation,
+DPI changes, and parent-window teardown. Executing those tests requires a Windows
+desktop and DX12 GPU; Windows runtime validation remains outstanding in this macOS
+workspace. Linux native presentation and Windows native GPU movie decoding are not
+implemented. The portable Windows movie adapter uses FFmpeg CPU decoding and GPU upload.
 
 ## GPU execution and cache-aware data flow
 
@@ -223,6 +256,17 @@ wgpu handles image transforms, compositing, effects, GLSL/WGSL programs, preview
 and output presentation. GLSL is validated and lowered through Naga during preparation.
 Texture formats are currently RGBA8Unorm; HDR and a linear-light color workflow are not
 implemented.
+
+File decoding, image resizing and generated-image rasterization run on a bounded image
+pool: two workers, sixteen queued requests and two queued results. Each source has one
+in-flight job and a coalesced pending revision. Generated images publish completed revisions
+in order even when edits arrive faster than rasterization; file results for a superseded
+selection are discarded. The last completed GPU image remains visible until replacement.
+Exact headless delivery drains pending work, including schedules larger than queue capacity.
+A four-entry, 64 MiB weighted LRU shares immutable CPU raster buffers across jobs. Textures
+persist across content changes; uploads occur only when an image completes. These are CPU
+generated/file images, not readback from GPU video frames. Cancellation tokens and a background
+reaper keep deleted sources from publishing results or joining workers on the UI thread.
 
 Content changes remain explicit preparation work: a new file or input format may require
 new decode resources. Text is shaped and rasterized when its text, formatting, or extent
@@ -241,6 +285,8 @@ rerasterizing text merely to move or scale it.
 | NDI OUT transfer buffers | 512 MiB total |
 | Audio PCM cache | 8 MiB per source |
 | File collection | 4,096 entries; 4 MiB playlist; 16 cached lists; 8 workers |
+| Image preparation | 2 workers; 16 queued jobs; 2 queued results; raster LRU ≤4 entries/64 MiB |
+| Optional frame trace | 512 samples, drop on saturation; file I/O on one worker |
 
 These are implementation bounds, not performance guarantees. GPU timestamps, pass fusion,
 HDR, dynamic plugin loading, and automatic device-loss recovery are future work.
@@ -261,7 +307,9 @@ wait. Overruns skip missed slots instead of creating catch-up bursts. Media and 
 clocks consume actual elapsed time after a UI stall; a 250 ms delta clamp no longer causes
 permanent drift. Program presentation targets the configured rate while routine editor
 notifications are capped at 30 Hz. Input handlers still request immediate UI updates.
-Rendering still runs on the GPUI thread: this reduces avoidable jitter but does not provide
+Editor and node-preview swapchains use non-vsync presentation so each small preview cannot
+independently gate the frame loop on a display refresh. Independent output windows retain
+the user's output-vsync setting. Rendering still runs on the GPUI thread: this reduces avoidable jitter but does not provide
 an independent realtime rendering thread or protect against all expensive UI work.
 
 macOS injects `MetalMovieFactory` in `main.rs`. A persistent hardware VideoToolbox session
@@ -271,6 +319,14 @@ letterboxes them into a persistent wgpu input texture. Shared events order nativ
 wgpu submissions without CPU pixel readback. These wgpu-specific `GpuVideoFactory`,
 `GpuVideoRuntime` and `GpuVideoDecoder` interfaces are internal rendering PAL contracts in
 infrastructure; application still depends only on `RenderBackend` and portable media ports.
+
+Video requests use a two-phase schedule: issue all targets before waiting for any decoder.
+Independent source I/O and hardware decoding therefore overlap. Exact requests can encode
+a cached target before waiting for a worker acknowledgement. The native runtime batches
+converted source images into one Metal command buffer and compute encoder per frame, created
+lazily only when a conversion is needed; events
+are signalled after the encoder ends. Even an error in another source commits prior conversions,
+so wgpu cannot wait forever on an event from an abandoned batch.
 
 One worker per source coalesces requests. A bounded requested-frame LRU retains at most four
 frames per source, targeting 64 MiB (at least one decoded frame must fit). A separate
@@ -322,6 +378,16 @@ resource preparation.
 Normal effects, node previews, output windows, and Syphon/Spout do not read GPU pixels
 back to the CPU. Explicit capture and test exports are separate operations. A sender
 failure is reported on that node without stopping independent screen outputs.
+
+## Frame telemetry
+
+`FrameTrace` is an application port. The composition root optionally injects `CsvFrameTrace`
+when `VJAY_FRAME_TRACE` names an output file. The frame loop publishes fixed-size samples
+without formatting, filesystem writes or waiting for queue space. The I/O worker writes
+buffered CSV. Records include CPU frame intervals, control/prepare time, renderer time,
+failures, actual encoded image-pass counts, forwarded source counts and pooled texture bytes.
+These are submission timings, not GPU timestamps or display scanout/presentation FPS.
+With tracing disabled, detailed clocks and trace records are not collected.
 
 ## Verification
 

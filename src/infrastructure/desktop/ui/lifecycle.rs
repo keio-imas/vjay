@@ -8,7 +8,7 @@ impl Editor {
         output_on_start: bool,
     ) -> Self {
         let focus = cx.focus_handle();
-        window.focus(&focus);
+        window.focus(&focus, cx);
         let mut editor = match initialization {
             Ok((session, preview, outputs)) => {
                 let selected = session
@@ -102,6 +102,7 @@ impl Editor {
             outputs: None,
             output_windows: Vec::new(),
             playback: None,
+            project_io_busy: false,
             focus,
             output_extent: std::rc::Rc::new(std::cell::Cell::new(
                 vjay_application::ports::Extent {

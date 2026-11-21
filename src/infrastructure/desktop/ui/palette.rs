@@ -19,7 +19,7 @@ impl Editor {
             cx.notify();
         })
         .detach();
-        window.focus(&search.read(cx).focus);
+        window.focus(&search.read(cx).focus.clone(), cx);
         self.insert_menu = None;
         self.patch_menu = None;
         self.parameter_menu = None;
@@ -87,7 +87,7 @@ impl Editor {
             }
             "tab" => {
                 self.palette = None;
-                window.focus(&self.focus);
+                window.focus(&self.focus, cx);
                 cx.notify();
             }
             _ => return false,
@@ -107,7 +107,7 @@ impl Editor {
         }
         self.apply(result);
         self.palette = None;
-        window.focus(&self.focus);
+        window.focus(&self.focus, cx);
         cx.notify();
     }
     pub(super) fn palette_popup(
@@ -165,10 +165,10 @@ impl Editor {
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .on_mouse_down_out(cx.listener(|this, _, window, cx| {
                     this.palette = None;
-                    window.focus(&this.focus);
+                    window.focus(&this.focus, cx);
                     cx.notify();
                 }))
-                .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
+                .on_scroll(|_, _, cx| cx.stop_propagation())
                 .child(div().text_xs().text_color(rgb(MUTED)).child("Add node"))
                 .child(p.search.clone())
                 .child(list)

@@ -84,7 +84,7 @@ impl Editor {
             cx.notify();
         })
         .detach();
-        window.focus(&search.read(cx).focus);
+        window.focus(&search.read(cx).focus.clone(), cx);
         self.font_picker = Some(FontPicker {
             target,
             title: title.into(),
@@ -127,11 +127,11 @@ impl Editor {
                 .shadow_lg()
                 .on_mouse_down_out(cx.listener(|this, _, window, cx| {
                     this.font_picker = None;
-                    window.focus(&this.focus);
+                    window.focus(&this.focus, cx);
                     cx.notify();
                 }))
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
+                .on_scroll(|_, _, cx| cx.stop_propagation())
                 .child(p.title.clone())
                 .child(p.search.clone())
                 .child(
@@ -188,7 +188,7 @@ impl Editor {
                                                 }
                                             }
                                             this.font_picker = None;
-                                            window.focus(&this.focus);
+                                            window.focus(&this.focus, cx);
                                             cx.notify();
                                         }))
                                 })

@@ -144,7 +144,7 @@ impl Session {
             return Err("Invalid workspace layout".into());
         }
         self.project.workspace = layout;
-        self.modified.set(true);
+        self.mark_modified();
         Ok(())
     }
     pub fn set_extent(&mut self, extent: Extent) -> PortResult<()> {
@@ -156,13 +156,13 @@ impl Session {
         Ok(())
     }
     pub fn move_node(&mut self, node: NodeId, position: Point) {
-        self.modified.set(true);
+        self.mark_modified();
         if let Some(p) = self.project.positions.iter_mut().find(|p| p.node == node) {
             p.position = position;
         }
     }
     pub fn pin_control(&mut self, node: NodeId, parameter: usize) -> PortResult<()> {
-        self.modified.set(true);
+        self.mark_modified();
         let record = self.project.graph.node(node).map_err(|e| e.to_string())?;
         if parameter >= self.schema(node).parameters.len() {
             return Err("Invalid control parameter".into());
@@ -203,14 +203,14 @@ impl Session {
         Ok(())
     }
     pub fn update_control_layout(&mut self, id: u64, position: Point, size: Point) {
-        self.modified.set(true);
+        self.mark_modified();
         if let Some(control) = self.project.controls.iter_mut().find(|c| c.id == id) {
             control.position = position;
             control.size = size;
         }
     }
     pub fn remove_control(&mut self, id: u64) {
-        self.modified.set(true);
+        self.mark_modified();
         self.project.controls.retain(|c| c.id != id);
     }
 }

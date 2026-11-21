@@ -58,6 +58,14 @@ impl GpuVideoFactory for MetalMovieFactory {
     }
 }
 impl GpuVideoRuntime for Runtime {
+    fn begin_frame(&mut self) -> PortResult<()> {
+        unsafe { ffi::vjay_movie_batch_begin(self.context.0) };
+        Ok(())
+    }
+    fn end_frame(&mut self) -> PortResult<()> {
+        unsafe { ffi::vjay_movie_batch_end(self.context.0) };
+        Ok(())
+    }
     fn open(&mut self, path: &Path, extent: Extent) -> PortResult<Box<dyn GpuVideoDecoder>> {
         stream::NativeMovie::open(
             &self.device,

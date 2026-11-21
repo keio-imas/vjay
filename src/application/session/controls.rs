@@ -79,7 +79,7 @@ impl Session {
             .map_or(Some(0), |id| id.checked_add(1))
             .filter(|id| *id != u64::MAX)
             .ok_or("Control IDs exhausted")?;
-        self.modified.set(true);
+        self.mark_modified();
         self.project.controls.push(ControlBinding {
             id,
             node,
@@ -110,7 +110,7 @@ impl Session {
             .find(|c| c.id == control.id)
             .ok_or("Control no longer exists")?;
         *current = control;
-        self.modified.set(true);
+        self.mark_modified();
         Ok(())
     }
     pub fn control_value(&self, control: &ControlBinding) -> f32 {

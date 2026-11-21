@@ -21,7 +21,9 @@ mod media;
 mod midi;
 mod parameters;
 mod preferences;
+mod project_io;
 mod projects;
+pub use project_io::{LoadedProject, OpenRequest, SaveRequest, SavedProject};
 mod readout;
 mod rendering;
 mod settings;
@@ -37,6 +39,8 @@ pub struct Session {
     preferences: crate::preferences::Preferences,
     settings_store: std::sync::Arc<dyn crate::preferences::SettingsStore>,
     modified: std::cell::Cell<bool>,
+    revision: std::cell::Cell<u64>,
+    project_epoch: u64,
     sync_taps: std::collections::HashMap<NodeId, vjay_domain::tempo::TapTempo>,
     untitled: bool,
     file_media: crate::file_media::FileMedia,
@@ -46,6 +50,9 @@ pub struct Session {
     nodes: Box<dyn NodeFactory>,
     renderer: Box<dyn RenderBackend>,
     clock: Box<dyn Clock>,
+    frame_trace: Option<std::sync::Arc<dyn crate::ports::telemetry::FrameTrace>>,
+    last_trace_clock: Option<f64>,
+    last_render_seconds: f64,
     store: Box<dyn ProjectStore>,
     plan: Option<RenderPlan>,
     extent: Extent,
@@ -97,6 +104,8 @@ impl Session {
             preferences: Default::default(),
             settings_store: runtime.settings_store(),
             modified: std::cell::Cell::new(false),
+            revision: std::cell::Cell::new(0),
+            project_epoch: 0,
             sync_taps: Default::default(),
             untitled: true,
             file_media: Default::default(),
@@ -106,6 +115,9 @@ impl Session {
             nodes,
             renderer: runtime.create_renderer()?,
             clock,
+            frame_trace: runtime.frame_trace(),
+            last_trace_clock: None,
+            last_render_seconds: 0.0,
             store,
             plan: None,
             extent,
@@ -205,6 +217,11 @@ impl Session {
     }
     pub fn restore(&mut self, document: crate::project::ProjectDocument) -> PortResult<()> {
         let candidate = Project::restore(document, self.nodes.as_ref())?;
+        self.install_project(candidate);
+        Ok(())
+    }
+    fn install_project(&mut self, candidate: Project) {
+        self.project_epoch = self.project_epoch.wrapping_add(1);
         self.project = candidate;
         self.ancestors.clear();
         self.execution = Default::default();
@@ -229,7 +246,6 @@ impl Session {
         self.invalidate(true);
         self.modified.set(false);
         self.sync_taps.clear();
-        Ok(())
     }
     pub fn store_location(&self) -> &std::path::Path {
         self.store.location()
@@ -259,6 +275,9 @@ impl Session {
     }
     pub fn wait_idle(&self) -> PortResult<()> {
         self.renderer.wait_idle()
+    }
+    pub fn render_metrics(&self) -> crate::ports::telemetry::RenderMetrics {
+        self.renderer.render_metrics()
     }
     pub fn media_metrics(&self) -> crate::media::MediaMetrics {
         self.renderer.media_metrics()

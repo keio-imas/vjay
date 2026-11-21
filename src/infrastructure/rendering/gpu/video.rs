@@ -14,10 +14,11 @@ struct Input {
     last_time: Option<f64>,
     playhead: f64,
     position: f32,
+    requested: f64,
 }
 pub(super) struct VideoInputs {
     streams: Vec<Input>,
-    pub views: Vec<Option<wgpu::TextureView>>,
+    pub views: Vec<Option<wgpu::Texture>>,
     pub errors: HashMap<vjay_domain::graph::NodeId, String>,
 }
 
@@ -77,7 +78,7 @@ impl VideoInputs {
             {
                 let mut input = old.streams.swap_remove(index);
                 input.step = step;
-                result.views[step] = Some(input.decoder.texture().create_view(&Default::default()));
+                result.views[step] = Some(input.decoder.texture().clone());
                 result.streams.push(input);
                 continue;
             }
@@ -108,7 +109,7 @@ impl VideoInputs {
                     continue;
                 }
             }
-            result.views[step] = Some(decoder.texture().create_view(&Default::default()));
+            result.views[step] = Some(decoder.texture().clone());
             result.streams.push(Input {
                 step,
                 node: node.node,
@@ -119,6 +120,7 @@ impl VideoInputs {
                 last_time: None,
                 playhead: 0.0,
                 position: -1.0,
+                requested: 0.0,
             });
         }
         Ok(result)
@@ -179,7 +181,23 @@ impl VideoInputs {
             } else {
                 0.0
             };
-            match input.decoder.frame_at(seconds, frame.delivery, queue) {
+            input.requested = seconds;
+            if let Err(error) = input.decoder.request_frame(seconds) {
+                self.errors.insert(input.node, error);
+            }
+        }
+        // Every decoder has its target before the first exact-delivery wait.
+        for input in &mut self.streams {
+            if let Some(error) = self.errors.get(&input.node) {
+                if plan.steps[input.step].program_required {
+                    return Err(error.clone());
+                }
+                continue;
+            }
+            match input
+                .decoder
+                .frame_at(input.requested, frame.delivery, queue)
+            {
                 Ok(_) => (),
                 Err(error) => {
                     if plan.steps[input.step].program_required {

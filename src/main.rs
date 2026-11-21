@@ -156,6 +156,16 @@ fn run() -> PortResult<()> {
     #[cfg(not(target_os = "macos"))]
     let media: Arc<dyn VideoDecoderFactory> =
         Arc::new(FfmpegDecoderFactory::new(args.ffmpeg, args.ffprobe));
+    let trace: Option<Arc<dyn vjay_application::ports::telemetry::FrameTrace>> =
+        std::env::var_os("VJAY_FRAME_TRACE")
+            .map(|path| {
+                vjay_infrastructure::rendering::frame_trace::CsvFrameTrace::new(path.into()).map(
+                    |trace| {
+                        Arc::new(trace) as Arc<dyn vjay_application::ports::telemetry::FrameTrace>
+                    },
+                )
+            })
+            .transpose()?;
     // The composition root is the only place that selects concrete adapters.
     let platform: Box<dyn Platform> = if args.headless {
         Box::new(HeadlessPlatform {
@@ -170,6 +180,7 @@ fn run() -> PortResult<()> {
                     },
                 )?
                 .with_settings(headless_settings)
+                .with_frame_trace(trace.clone())
                 .with_gpu_video(native_video.clone())
                 .with_images(Arc::new(vjay_infrastructure::images::RasterImageLoader))
                 .with_prepared_images(headless_text)
@@ -188,16 +199,26 @@ fn run() -> PortResult<()> {
     } else {
         Box::new(
             GpuiPlatform::new(move |window| {
-                #[cfg(target_os = "macos")]
+                #[cfg(any(target_os = "macos", target_os = "windows"))]
                 {
                     use std::{cell::RefCell, rc::Rc};
+                    #[cfg(target_os = "macos")]
+                    use vjay_infrastructure::macos::{
+                        MacGpuPreview as NativeGpuPreview,
+                        MacNodePreviewFactory as NativeNodePreviewFactory,
+                        MacOutputFactory as NativeOutputFactory,
+                    };
+                    #[cfg(target_os = "windows")]
+                    use vjay_infrastructure::windows::{
+                        WindowsGpuPreview as NativeGpuPreview,
+                        WindowsNodePreviewFactory as NativeNodePreviewFactory,
+                        WindowsOutputFactory as NativeOutputFactory,
+                    };
                     use vjay_infrastructure::{
-                        gpu::presentation_group::PresentationGroup,
-                        macos::{MacGpuPreview, MacOutputFactory},
-                        platform::SharedPreview,
+                        gpu::presentation_group::PresentationGroup, platform::SharedPreview,
                     };
                     let group = Rc::new(RefCell::new(PresentationGroup::new(Box::new(
-                        MacGpuPreview::attach(window)?,
+                        NativeGpuPreview::attach(window)?,
                     ))));
                     let preview: SharedPreview = group.clone();
                     let runtime = WgpuRuntimeFactory::for_desktop(
@@ -206,6 +227,7 @@ fn run() -> PortResult<()> {
                         vjay_infrastructure::gpu::programs::builtin_programs(),
                     )?
                     .with_settings(settings)
+                    .with_frame_trace(trace.clone())
                     .with_images(Arc::new(vjay_infrastructure::images::RasterImageLoader))
                     .with_prepared_images(text_images)
                     .with_gpu_video(native_video.clone())
@@ -223,20 +245,20 @@ fn run() -> PortResult<()> {
                             audio_ffprobe,
                         ),
                     ));
-                    group.borrow_mut().set_node_factory(Box::new(
-                        vjay_infrastructure::macos::MacNodePreviewFactory::new(
+                    group
+                        .borrow_mut()
+                        .set_node_factory(Box::new(NativeNodePreviewFactory::new(
                             window,
                             runtime.context(),
-                        )?,
-                    ));
-                    let outputs = Rc::new(MacOutputFactory::new(runtime.context(), group));
+                        )?));
+                    let outputs = Rc::new(NativeOutputFactory::new(runtime.context(), group));
                     Ok(DesktopRuntime {
                         factory: Box::new(runtime),
                         preview: Some(preview),
                         outputs: Some(outputs),
                     })
                 }
-                #[cfg(not(target_os = "macos"))]
+                #[cfg(not(any(target_os = "macos", target_os = "windows")))]
                 {
                     let _ = window;
                     Ok(DesktopRuntime {
@@ -251,6 +273,7 @@ fn run() -> PortResult<()> {
                                 },
                             )?
                             .with_settings(settings)
+                            .with_frame_trace(trace.clone())
                             .with_images(Arc::new(vjay_infrastructure::images::RasterImageLoader))
                             .with_prepared_images(text_images)
                             .with_video_io(video_io)

@@ -7,7 +7,7 @@ impl Editor {
     pub(super) fn focus_control(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
         self.selection.clear();
         self.selected_control = Some(id);
-        window.focus(&self.focus);
+        window.focus(&self.focus, cx);
         cx.notify();
     }
 
@@ -163,7 +163,7 @@ impl Editor {
                             .on_mouse_down(
                                 MouseButton::Left,
                                 cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                                    window.focus(&this.focus);
+                                    window.focus(&this.focus, cx);
                                     this.selected_control = Some(id);
                                     this.selection.clear();
                                     this.drag =
@@ -203,7 +203,7 @@ impl Editor {
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                            window.focus(&this.focus);
+                            window.focus(&this.focus, cx);
                             this.selection.clear();
                             this.selected_control = Some(id);
                             this.drag = Some(Drag::Resize(id, size, position(event.position)));

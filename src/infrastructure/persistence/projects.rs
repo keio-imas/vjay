@@ -19,6 +19,9 @@ impl JsonProjectStore {
 }
 
 impl ProjectStore for JsonProjectStore {
+    fn background_io(&self) -> Option<std::sync::Arc<dyn vjay_application::ports::ProjectFiles>> {
+        Some(std::sync::Arc::new(ProjectFileIo))
+    }
     fn load_from(&self, path: &Path) -> PortResult<ProjectDocument> {
         Self::new(path.to_owned()).load()
     }
@@ -60,6 +63,16 @@ impl ProjectStore for JsonProjectStore {
     }
     fn location(&self) -> &Path {
         &self.path
+    }
+}
+
+struct ProjectFileIo;
+impl vjay_application::ports::ProjectFiles for ProjectFileIo {
+    fn read(&self, path: &Path) -> PortResult<ProjectDocument> {
+        JsonProjectStore::new(path.to_owned()).load()
+    }
+    fn write(&self, path: &Path, document: &ProjectDocument) -> PortResult<()> {
+        JsonProjectStore::new(path.to_owned()).save(document)
     }
 }
 

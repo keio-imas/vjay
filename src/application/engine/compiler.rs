@@ -34,6 +34,14 @@ pub struct RenderStep {
     pub media_time: Option<f64>,
     pub playback: Option<MediaPlayback>,
 }
+impl RenderStep {
+    pub fn external_source(&self) -> bool {
+        self.operation.external_passthrough
+            && (self.asset.is_some()
+                || self.operation.prepared.is_some()
+                || self.operation.stream.is_some())
+    }
+}
 #[derive(Clone, Debug)]
 pub struct RenderPlan {
     pub outputs: Vec<RenderOutput>,
@@ -55,6 +63,7 @@ pub struct RenderPreview {
     pub node: NodeId,
     pub step: usize,
 }
+mod allocation;
 mod kernels;
 mod outputs;
 mod previews;
@@ -238,48 +247,11 @@ fn compile_plan(
     let final_step = source
         .map(|s| mapping[bindings.output(s)].ok_or("Output has no renderable source"))
         .transpose()?;
-    let mut last_use: Vec<_> = (0..steps.len()).collect();
-    for (consumer, inputs) in dependencies.iter().enumerate() {
-        for &producer in inputs.iter().flatten() {
-            last_use[producer] = consumer;
-        }
-    }
-    if let Some(final_step) = final_step {
-        last_use[final_step] = steps.len();
-    }
-    for root in &output_roots {
-        if let Some(i) = mapping[bindings.output(root.source)] {
-            last_use[i] = steps.len();
-        }
-    }
-    let mut free = Vec::new();
-    let mut count = 0;
-    for index in 0..steps.len() {
-        let slot = free.pop().unwrap_or_else(|| {
-            let slot = count;
-            count += 1;
-            slot
-        });
-        steps[index].target = slot;
-        steps[index].inputs = dependencies[index].map(|input| input.map(|i| steps[i].target));
-        for (port, producer) in dependencies[index].iter().enumerate() {
-            if let Some(producer) = producer
-                && last_use[*producer] == index
-                && !dependencies[index][..port].contains(&Some(*producer))
-            {
-                free.push(steps[*producer].target);
-            }
-        }
-        if last_use[index] == index {
-            free.push(slot);
-        }
-    }
-    let output_slot = if let Some(final_step) = final_step {
-        steps[final_step].target
-    } else {
-        count += 1;
-        count - 1
-    };
+    let retained = output_roots
+        .iter()
+        .filter_map(|r| mapping[bindings.output(r.source)])
+        .collect::<Vec<_>>();
+    let (count, output_slot) = allocation::assign(&mut steps, &dependencies, &retained, final_step);
     Ok(RenderPlan {
         outputs: output_roots
             .into_iter()

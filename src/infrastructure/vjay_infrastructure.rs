@@ -8,6 +8,8 @@ pub mod rendering;
 #[cfg(target_os = "macos")]
 pub use desktop::macos;
 pub(crate) use desktop::ui;
+#[cfg(target_os = "windows")]
+pub use desktop::windows;
 pub use desktop::{clipboard, demo, platform};
 pub use integrations::{control_io, services};
 pub use media::{audio, file_collection, images, text_images, web_media};

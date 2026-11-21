@@ -96,7 +96,7 @@ impl Editor {
             cx.notify();
         })
         .detach();
-        window.focus(&search.read(cx).focus);
+        window.focus(&search.read(cx).focus.clone(), cx);
         let matches = (0..entries.len()).collect();
         self.binding_picker = Some(BindingPicker {
             search,
@@ -137,11 +137,11 @@ impl Editor {
                 .shadow_lg()
                 .on_mouse_down_out(cx.listener(|this, _, window, cx| {
                     this.binding_picker = None;
-                    window.focus(&this.focus);
+                    window.focus(&this.focus, cx);
                     cx.notify();
                 }))
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
+                .on_scroll(|_, _, cx| cx.stop_propagation())
                 .child("Choose binding target")
                 .child(p.search.clone())
                 .child(
@@ -174,7 +174,7 @@ impl Editor {
                                                 .configure_control(binding.clone());
                                             this.apply(result);
                                             this.binding_picker = None;
-                                            window.focus(&this.focus);
+                                            window.focus(&this.focus, cx);
                                             cx.notify();
                                         }))
                                 })

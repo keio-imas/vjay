@@ -98,7 +98,7 @@ impl Render for TextField {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|this, event: &gpui::MouseDownEvent, window, cx| {
-                    window.focus(&this.focus);
+                    window.focus(&this.focus, cx);
                     if let Some(byte) = this.index_at(event.position) {
                         this.select(
                             if event.modifiers.shift {
@@ -178,7 +178,14 @@ impl Render for TextField {
                                     ));
                                 }
                             }
-                            let _ = line.paint(origin, px(20.0), window, cx);
+                            let _ = line.paint(
+                                origin,
+                                px(20.0),
+                                gpui::TextAlign::Left,
+                                None,
+                                window,
+                                cx,
+                            );
                             lines.push((offset..offset + text.len(), line, row_bounds));
                             offset += text.len() + 1;
                         }

@@ -1,6 +1,6 @@
 use crate::{gpu::presentation::GpuPresentation, storage::write_ppm, ui::Editor};
 gpui::actions!(vjay, [Quit]);
-use gpui::{App, AppContext, Application, Bounds, Window, WindowBounds, WindowOptions, px, size};
+use gpui::{App, AppContext, Bounds, Window, WindowBounds, WindowOptions, px, size};
 use std::{cell::RefCell, path::PathBuf, rc::Rc, time::Instant};
 use vjay_application::ports::{Platform, PortResult, RuntimeFactory, SessionFactory};
 
@@ -46,7 +46,7 @@ impl Platform for GpuiPlatform {
     fn run(self: Box<Self>, create: SessionFactory) -> PortResult<()> {
         let result = Rc::new(RefCell::new(Ok(())));
         let errors = result.clone();
-        Application::new().run(move |cx: &mut App| {
+        gpui_platform::application().run(move |cx: &mut App| {
             cx.on_action(|_: &Quit, cx| cx.quit());
             cx.bind_keys([
                 gpui::KeyBinding::new("cmd-q", Quit, None),
@@ -75,7 +75,7 @@ impl Platform for GpuiPlatform {
                 *errors.borrow_mut() = Err(error.to_string());
                 cx.quit();
             }
-            cx.on_window_closed(|cx| {
+            cx.on_window_closed(|cx, _| {
                 if cx.windows().is_empty() {
                     cx.quit();
                 }

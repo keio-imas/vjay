@@ -11,3 +11,21 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Verify native build tools
+        shell: pwsh
+        run: |
+          Get-Command perl, cmake, cl
+          perl -v
+          cmake --version
+      - run: cargo build --release --locked
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test -p vjay-infrastructure --lib desktop::windows::tests::dpi_coordinates --locked
+      - run: cargo test -p vjay-infrastructure --lib desktop::windows::tests::child_clipping --locked -- --ignored --test-threads=1

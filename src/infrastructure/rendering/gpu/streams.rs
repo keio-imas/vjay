@@ -38,7 +38,7 @@ impl Streams {
         queue: &wgpu::Queue,
         plan: &RenderPlan,
         extent: Extent,
-        views: &mut [Option<wgpu::TextureView>],
+        views: &mut [Option<wgpu::Texture>],
     ) -> PortResult<()> {
         if self.extent != Some(extent) {
             self.inputs.clear();
@@ -78,7 +78,7 @@ impl Streams {
             };
             match result {
                 Ok(receiver) => {
-                    views[step] = Some(receiver.texture().create_view(&Default::default()));
+                    views[step] = Some(receiver.texture().clone());
                     self.inputs.push(Input {
                         node: node.node,
                         status: None,

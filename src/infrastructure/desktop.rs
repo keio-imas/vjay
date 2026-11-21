@@ -8,3 +8,5 @@ pub mod macos;
 mod open_node_tests;
 pub mod platform;
 pub(crate) mod ui;
+#[cfg(target_os = "windows")]
+pub mod windows;

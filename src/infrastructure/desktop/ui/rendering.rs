@@ -91,7 +91,7 @@ impl Render for Editor {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|this, _, window, cx| {
-                    window.focus(&this.focus);
+                    window.focus(&this.focus, cx);
                     if this.insert_menu.take().is_some() || this.patch_menu.take().is_some() {
                         cx.notify();
                     }

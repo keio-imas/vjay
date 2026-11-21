@@ -20,9 +20,8 @@ pub(super) struct WgpuRenderer {
     assets: HashMap<AssetId, PathBuf>,
     video: Option<VideoInputs>,
     native_video: Option<Box<dyn super::GpuVideoRuntime>>,
-    stills: super::stills::StillInputs,
-    image_loaders: super::RendererAdapters,
-    prepared_images: super::prepared::PreparedInputs,
+    images: super::images::ImageInputs,
+    submitted_frames: u64,
     custom: super::programs::ShaderCache,
     pipelines: Vec<wgpu::RenderPipeline>,
     programs: Arc<super::programs::ShaderPrograms>,
@@ -62,9 +61,11 @@ impl WgpuRenderer {
             media_factory,
             assets: HashMap::new(),
             video: None,
-            stills: Default::default(),
-            image_loaders,
-            prepared_images: Default::default(),
+            images: super::images::ImageInputs::new(
+                image_loaders.files.clone(),
+                image_loaders.generated.clone(),
+            ),
+            submitted_frames: 0,
             custom: Default::default(),
             pipelines: Vec::new(),
         })
@@ -72,6 +73,22 @@ impl WgpuRenderer {
 }
 
 impl RenderBackend for WgpuRenderer {
+    fn render_metrics(&self) -> vjay_application::ports::telemetry::RenderMetrics {
+        let Some(r) = &self.resources else {
+            return Default::default();
+        };
+        let forwarded = r.forwarded.iter().filter(|&&v| v).count();
+        vjay_application::ports::telemetry::RenderMetrics {
+            submitted_frames: self.submitted_frames,
+            image_passes: r.forwarded.len() - forwarded,
+            forwarded_sources: forwarded,
+            pooled_texture_bytes: (r.textures.len() - forwarded) as u64
+                * r.extent.width as u64
+                * r.extent.height as u64
+                * 4,
+        }
+    }
+
     fn wait_idle(&self) -> PortResult<()> {
         let submission = self.queue.submit([]);
         self.device
@@ -120,14 +137,8 @@ impl RenderBackend for WgpuRenderer {
         self.streams
             .errors
             .get(&node)
-            .or_else(|| {
-                self.prepared_images.errors.get(&node).or_else(|| {
-                    self.stills
-                        .errors
-                        .get(&node)
-                        .or_else(|| self.video.as_ref().and_then(|v| v.errors.get(&node)))
-                })
-            })
+            .or_else(|| self.images.errors.get(&node))
+            .or_else(|| self.video.as_ref().and_then(|v| v.errors.get(&node)))
             .map(String::as_str)
     }
     fn media_duration(&self, node: vjay_domain::graph::NodeId) -> Option<f64> {
@@ -152,11 +163,22 @@ impl RenderBackend for WgpuRenderer {
         self.prepare_plan(plan, extent)
     }
     fn render(&mut self, plan: &RenderPlan, frame: FrameContext) -> PortResult<()> {
-        self.prepared_images
-            .update(&self.queue, plan, self.image_loaders.generated.as_deref())?;
-        if let Some(video) = self.video.as_mut() {
-            video.update(&self.queue, plan, frame)?;
+        self.images.update(&self.queue, plan, frame.delivery)?;
+        if let Some(native) = self.native_video.as_mut() {
+            native.begin_frame()?;
         }
+        let video_result = self
+            .video
+            .as_mut()
+            .map_or(Ok(()), |video| video.update(&self.queue, plan, frame));
+        // Always commit encoded conversions, even when a different source failed:
+        // any wgpu shared-event waits already registered must still be signalled.
+        let batch_result = self
+            .native_video
+            .as_mut()
+            .map_or(Ok(()), |native| native.end_frame());
+        video_result?;
+        batch_result?;
         let resources = self
             .resources
             .as_mut()
@@ -191,23 +213,25 @@ impl RenderBackend for WgpuRenderer {
         self.streams
             .update(&self.device, &self.queue, &mut encoder)?;
         for (i, step) in plan.steps.iter().enumerate() {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("node pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &resources.views[step.target],
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                ..Default::default()
-            });
-            pass.set_pipeline(&self.pipelines[i]);
-            pass.set_bind_group(0, &resources.groups[i], &[(i * resources.stride) as u32]);
-            pass.draw(0..3, 0..1);
-            drop(pass);
+            if !resources.forwarded[i] {
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("node pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &resources.views[step.target],
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    ..Default::default()
+                });
+                pass.set_pipeline(&self.pipelines[i]);
+                pass.set_bind_group(0, &resources.groups[i], &[(i * resources.stride) as u32]);
+                pass.draw(0..3, 0..1);
+                drop(pass);
+            }
             // Consume the preview before pooled output textures may be reused.
             if let Some(p) = &self.presentation {
                 for index in step.preview.iter().chain(&step.extra_previews) {
@@ -238,6 +262,7 @@ impl RenderBackend for WgpuRenderer {
         }
         self.streams.encode(&mut encoder, &resources.textures)?;
         self.queue.submit([encoder.finish()]);
+        self.submitted_frames += 1;
         self.streams.submitted(&self.device, &self.queue)?;
         if let Some(presentation) = &self.presentation {
             presentation.borrow_mut().present(&self.queue);

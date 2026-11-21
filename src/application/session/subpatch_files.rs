@@ -97,7 +97,7 @@ impl Session {
                 .expect("parent instance")
                 .source = Some(path);
         }
-        self.modified.set(true);
+        self.mark_modified();
         Ok(())
     }
     pub fn subpatch_source(&self, node: NodeId) -> Option<&std::path::Path> {

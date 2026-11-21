@@ -31,7 +31,7 @@ impl Session {
     }
     pub fn transport(&mut self, node: NodeId, action: TransportAction) -> PortResult<()> {
         if matches!(action, TransportAction::SetCue) {
-            self.modified.set(true);
+            self.mark_modified();
         }
         self.timeline.command(node, action)
     }

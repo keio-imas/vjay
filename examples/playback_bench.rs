@@ -79,7 +79,7 @@ fn main() -> Result<(), String> {
     }
     session.wait_idle()?;
     println!(
-        "mode,pattern,width,height,frames,p50_ms,p95_ms,p99_ms,max_ms,total_ms,video_cpu_bytes,delivered,decoder_starts,seek_resets,cache_hits,over_16_67_ms"
+        "mode,pattern,width,height,frames,p50_ms,p95_ms,p99_ms,max_ms,total_ms,video_cpu_bytes,delivered,decoder_starts,seek_resets,cache_hits,over_16_67_ms,image_passes,forwarded_sources,pooled_texture_bytes"
     );
     for pattern in ["sequential", "jog", "seek"] {
         let frames = if pattern == "seek" {
@@ -111,11 +111,12 @@ fn main() -> Result<(), String> {
         }
         let total = start.elapsed().as_secs_f64() * 1000.0;
         let after = session.media_metrics();
+        let render = session.render_metrics();
         let late = times.iter().filter(|&&t| t > 1000.0 / 60.0).count();
         times.sort_by(f64::total_cmp);
         let percentile = |p: f64| times[((times.len() - 1) as f64 * p).ceil() as usize];
         println!(
-            "{mode},{pattern},{},{},{frames},{:.3},{:.3},{:.3},{:.3},{total:.3},{},{},{},{},{},{late}",
+            "{mode},{pattern},{},{},{frames},{:.3},{:.3},{:.3},{:.3},{total:.3},{},{},{},{},{},{late},{},{},{}",
             extent.width,
             extent.height,
             percentile(0.5),
@@ -126,7 +127,10 @@ fn main() -> Result<(), String> {
             after.frames_delivered - before.frames_delivered,
             after.decoder_starts - before.decoder_starts,
             after.seek_resets - before.seek_resets,
-            after.cache_hits - before.cache_hits
+            after.cache_hits - before.cache_hits,
+            render.image_passes,
+            render.forwarded_sources,
+            render.pooled_texture_bytes
         );
     }
     Ok(())

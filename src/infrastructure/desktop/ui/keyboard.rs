@@ -15,7 +15,7 @@ impl Editor {
                 } else {
                     self.settings = None;
                 }
-                window.focus(&self.focus);
+                window.focus(&self.focus, cx);
                 cx.stop_propagation();
                 cx.notify();
                 return;
@@ -31,7 +31,7 @@ impl Editor {
             self.parameter_menu = None;
             self.binding_picker = None;
             self.font_picker = None;
-            window.focus(&self.focus);
+            window.focus(&self.focus, cx);
             cx.stop_propagation();
             cx.notify();
             return;

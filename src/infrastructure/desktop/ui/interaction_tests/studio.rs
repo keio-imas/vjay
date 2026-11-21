@@ -110,7 +110,7 @@ fn scrolling_the_browser_reveals_the_last_node_above_input_controls(cx: &mut Tes
     let (_view, cx) = cx.add_window_view(editor);
     cx.simulate_resize(size(px(1000.0), px(700.0)));
     let list = center(cx, "node-results");
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: list,
         delta: gpui::ScrollDelta::Pixels(point(px(0.0), px(-100000.0))),
         ..Default::default()

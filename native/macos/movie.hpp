@@ -11,6 +11,14 @@
 #include <string>
 
 struct MovieContext {
+    // Only the runtime's GPU producer thread accesses batch state. Decoder
+    // workers share the immutable pipeline and CoreVideo texture cache only.
+    id<MTLCommandBuffer> batch = nil;
+    bool batching = false;
+    id<MTLComputeCommandEncoder> encoder = nil;
+    struct Signal { id<MTLSharedEvent> event = nil; uint64_t value = 0; };
+    std::array<Signal, 8> signals;
+    unsigned signalCount = 0;
     id<MTLDevice> device;
     id<MTLCommandQueue> queue;
     id<MTLComputePipelineState> pipeline;

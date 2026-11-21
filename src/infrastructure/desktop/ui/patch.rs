@@ -142,7 +142,7 @@ impl Editor {
                         cx.listener(|this, event: &MouseDownEvent, window, cx| {
                             this.finish_gesture();
                             this.drag = Some(Drag::Pan(this.pan, position(event.position)));
-                            window.focus(&this.focus);
+                            window.focus(&this.focus, cx);
                             cx.stop_propagation();
                             cx.notify();
                         }),
@@ -150,12 +150,12 @@ impl Editor {
                     .on_mouse_down(
                         MouseButton::Right,
                         cx.listener(|this, event: &MouseDownEvent, window, cx| {
-                            window.focus(&this.focus);
+                            window.focus(&this.focus, cx);
                             this.open_insert(position(event.position));
                             cx.notify();
                         }),
                     )
-                    .on_scroll_wheel(cx.listener(|this, event: &ScrollWheelEvent, _, cx| {
+                    .on_scroll(cx.listener(|this, event: &ScrollEvent, _, cx| {
                         let delta = position(event.delta.pixel_delta(px(20.0)));
                         if event.modifiers.control || event.modifiers.platform {
                             this.zoom_at(position(event.position), (delta.y * 0.002).exp());

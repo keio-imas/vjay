@@ -93,7 +93,7 @@ impl Editor {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                    window.focus(&this.focus);
+                    window.focus(&this.focus, cx);
                     this.begin_cable(socket, position(event.position));
                     cx.stop_propagation();
                     cx.notify();

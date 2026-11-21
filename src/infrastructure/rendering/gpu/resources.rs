@@ -2,6 +2,7 @@ use vjay_application::{compiler::RenderPlan, ports::Extent};
 
 pub(super) struct Resources {
     pub textures: Vec<wgpu::Texture>,
+    pub forwarded: Vec<bool>,
     pub views: Vec<wgpu::TextureView>,
     pub groups: Vec<wgpu::BindGroup>,
     pub uniforms: wgpu::Buffer,
@@ -10,6 +11,17 @@ pub(super) struct Resources {
     pub extent: Extent,
     pub output_slot: usize,
     _fallback: wgpu::Texture,
+}
+
+/// Forward only a capture-compatible image with exactly the graph's extent.
+pub(super) fn can_forward(texture: &wgpu::Texture, extent: Extent) -> bool {
+    texture.usage().contains(wgpu::TextureUsages::COPY_SRC)
+        && texture.width() == extent.width
+        && texture.height() == extent.height
+        && texture.depth_or_array_layers() == 1
+        && texture.sample_count() == 1
+        && texture.dimension() == wgpu::TextureDimension::D2
+        && texture.format() == wgpu::TextureFormat::Rgba8Unorm
 }
 
 pub(super) fn create_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -100,7 +112,7 @@ impl Resources {
         layout: &wgpu::BindGroupLayout,
         plan: &RenderPlan,
         extent: Extent,
-        video: &[Option<wgpu::TextureView>],
+        video: &[Option<wgpu::Texture>],
     ) -> Self {
         let stride = 272_usize
             .div_ceil(device.limits().min_uniform_buffer_offset_alignment as usize)
@@ -130,13 +142,29 @@ impl Resources {
                 view_formats: &[],
             })
         };
-        let textures: Vec<_> = (0..plan.texture_count)
-            .map(|_| make_texture(extent.width, extent.height))
+        let mut forwarded = vec![false; plan.steps.len()];
+        let mut aliases = vec![None; plan.texture_count];
+        for (i, step) in plan.steps.iter().enumerate() {
+            if step.external_source()
+                && let Some(texture) = &video[i]
+                && can_forward(texture, extent)
+            {
+                aliases[step.target] = Some(texture.clone());
+                forwarded[i] = true;
+            }
+        }
+        let textures: Vec<_> = aliases
+            .into_iter()
+            .map(|source| source.unwrap_or_else(|| make_texture(extent.width, extent.height)))
             .collect();
         let views: Vec<_> = textures
             .iter()
             .map(|t| t.create_view(&Default::default()))
             .collect();
+        let sources = video
+            .iter()
+            .map(|t| t.as_ref().map(|t| t.create_view(&Default::default())))
+            .collect::<Vec<_>>();
         let fallback = make_texture(1, 1);
         let fallback_view = fallback.create_view(&Default::default());
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -151,7 +179,7 @@ impl Resources {
             .map(|(index, step)| {
                 let input = |port: usize| {
                     if port == 0
-                        && let Some(view) = &video[index]
+                        && let Some(view) = &sources[index]
                     {
                         return view;
                     }
@@ -191,6 +219,7 @@ impl Resources {
             })
             .collect();
         Self {
+            forwarded,
             textures,
             views,
             groups,

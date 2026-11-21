@@ -1,5 +1,6 @@
 pub mod control_io;
 pub mod media;
+pub mod telemetry;
 use crate::{compiler::RenderPlan, project::ProjectDocument, session::Session};
 use std::path::Path;
 
@@ -38,6 +39,9 @@ pub struct CapturedFrame {
 }
 
 pub trait RenderBackend {
+    fn render_metrics(&self) -> telemetry::RenderMetrics {
+        Default::default()
+    }
     /// Explicit profiling/export fence; ordinary playback never waits for the GPU here.
     fn wait_idle(&self) -> PortResult<()> {
         Ok(())
@@ -94,6 +98,9 @@ pub trait Clock {
 
 /// Abstract factory for a compatible rendering runtime and its time source.
 pub trait RuntimeFactory {
+    fn frame_trace(&self) -> Option<std::sync::Arc<dyn telemetry::FrameTrace>> {
+        None
+    }
     fn settings_store(&self) -> std::sync::Arc<dyn crate::preferences::SettingsStore> {
         std::sync::Arc::new(crate::preferences::MemorySettings::default())
     }
@@ -111,6 +118,9 @@ pub trait RuntimeFactory {
 }
 
 pub trait ProjectStore {
+    fn background_io(&self) -> Option<std::sync::Arc<dyn ProjectFiles>> {
+        None
+    }
     fn load_from(&self, _path: &Path) -> PortResult<ProjectDocument> {
         Err("Opening another project is unavailable".into())
     }
@@ -123,6 +133,12 @@ pub trait ProjectStore {
     fn load(&self) -> PortResult<ProjectDocument>;
     fn save(&self, document: &ProjectDocument) -> PortResult<()>;
     fn location(&self) -> &Path;
+}
+
+/// Detached file operations. Requests own their documents; no live Session is shared.
+pub trait ProjectFiles: Send + Sync {
+    fn read(&self, path: &Path) -> PortResult<ProjectDocument>;
+    fn write(&self, path: &Path, document: &ProjectDocument) -> PortResult<()>;
 }
 
 /// Platform abstraction: the use cases own no native window or event-loop API.

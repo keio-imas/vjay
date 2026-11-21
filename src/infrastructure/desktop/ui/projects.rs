@@ -5,7 +5,7 @@ pub(super) enum Change {
     Open,
 }
 impl Editor {
-    fn perform_project_change(&mut self, action: Change, cx: &mut Context<Self>) {
+    pub(super) fn perform_project_change(&mut self, action: Change, cx: &mut Context<Self>) {
         match action {
             Change::Open => self.open_project_file(cx),
             Change::New => {
@@ -24,6 +24,10 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.project_io_busy {
+            self.message = "A project file operation is in progress".into();
+            return;
+        }
         if !self.session().project_modified() {
             self.perform_project_change(action, cx);
             return;
@@ -47,11 +51,7 @@ impl Editor {
     }
     fn save_then_change(&mut self, action: Change, cx: &mut Context<Self>) {
         if !self.session().is_untitled() {
-            let r = self.session().save();
-            if r.is_ok() {
-                self.perform_project_change(action, cx);
-            }
-            self.apply(r);
+            self.start_save(None, Some(action), cx);
             return;
         }
         let path = cx.prompt_for_new_path(
@@ -63,11 +63,7 @@ impl Editor {
             let _ = entity.update(cx, |this, cx| {
                 match result {
                     Ok(Ok(Some(path))) => {
-                        let r = this.session_mut().save_project_as(path);
-                        if r.is_ok() {
-                            this.perform_project_change(action, cx);
-                        }
-                        this.apply(r);
+                        this.start_save(Some(path), Some(action), cx);
                     }
                     Ok(Ok(None)) => (),
                     Ok(Err(e)) => this.message = e.to_string(),
@@ -111,12 +107,7 @@ impl Editor {
                 match result {
                     Ok(Ok(Some(paths))) => {
                         if let Some(path) = paths.first() {
-                            let result = this.session_mut().open_project(path.clone());
-                            if result.is_ok() {
-                                this.project_changed(cx);
-                                this.message = "Project opened".into();
-                            }
-                            this.apply(result);
+                            this.start_open(path.clone(), cx);
                         }
                     }
                     Ok(Ok(None)) => (),
@@ -129,13 +120,12 @@ impl Editor {
         .detach();
     }
     pub(super) fn save_project_file(&mut self, save_as: bool, cx: &mut Context<Self>) {
+        if self.project_io_busy {
+            self.message = "A project file operation is in progress".into();
+            return;
+        }
         if !save_as && !self.session().is_untitled() {
-            let result = self.session().save();
-            if result.is_ok() {
-                self.message = "Project saved".into();
-            }
-            self.apply(result);
-            cx.notify();
+            self.start_save(None, None, cx);
             return;
         }
         let name = if self.session().is_untitled() {
@@ -149,11 +139,7 @@ impl Editor {
             let _ = entity.update(cx, |this, cx| {
                 match result {
                     Ok(Ok(Some(path))) => {
-                        let result = this.session_mut().save_project_as(path);
-                        if result.is_ok() {
-                            this.message = "Project saved".into();
-                        }
-                        this.apply(result);
+                        this.start_save(Some(path), None, cx);
                     }
                     Ok(Ok(None)) => (),
                     Ok(Err(e)) => this.message = e.to_string(),

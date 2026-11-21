@@ -64,9 +64,9 @@ struct NodeSurface {
 impl GpuPresentation for PresentationGroup {
     fn set_vsync(&mut self, enabled: bool) {
         self.vsync = enabled;
-        self.primary.set_vsync(enabled);
+        self.primary.set_vsync(false);
         for node in &mut self.nodes {
-            node.preview.set_vsync(enabled);
+            node.preview.set_vsync(false);
         }
         for (_, output) in &self.outputs {
             if let Some(output) = output.upgrade() {
@@ -133,7 +133,7 @@ impl GpuPresentation for PresentationGroup {
                 old.swap_remove(i)
             } else {
                 let mut preview = factory.create()?;
-                preview.set_vsync(self.vsync);
+                preview.set_vsync(false);
                 preview.set_hidden(true);
                 NodeSurface {
                     id: *id,
@@ -180,11 +180,12 @@ impl GpuPresentation for PresentationGroup {
     fn instance(&self) -> &wgpu::Instance {
         self.primary.instance()
     }
-    fn surface(&self) -> &wgpu::Surface<'static> {
-        self.primary.surface()
+    fn request_adapter(&self) -> PortResult<wgpu::Adapter> {
+        self.primary.request_adapter()
     }
     fn initialize(&mut self, device: &wgpu::Device, adapter: &wgpu::Adapter) -> PortResult<()> {
         self.device = Some(device.clone());
+        self.primary.set_vsync(false);
         self.primary.initialize(device, adapter)
     }
     fn prepare(&mut self, device: &wgpu::Device, image: &wgpu::TextureView) -> PortResult<()> {

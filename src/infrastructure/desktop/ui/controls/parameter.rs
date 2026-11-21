@@ -156,7 +156,7 @@ impl Editor {
                         e.cursor_ew_resize().on_mouse_down(
                             MouseButton::Left,
                             cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                                window.focus(&this.focus);
+                                window.focus(&this.focus, cx);
                                 this.drag = Some(Drag::Value(parameter_drag::ValueDrag::new(
                                     id,
                                     index,

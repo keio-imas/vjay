@@ -69,7 +69,7 @@ impl Editor {
             self.selection.only(id);
         }
         self.selected_control = None;
-        window.focus(&self.focus);
+        window.focus(&self.focus, cx);
         cx.stop_propagation();
         cx.notify();
     }
@@ -139,7 +139,7 @@ impl Editor {
         self.drag = None;
         self.cable = None;
         self.selected_control = None;
-        window.focus(&self.focus);
+        window.focus(&self.focus, cx);
         cx.stop_propagation();
         cx.notify();
     }

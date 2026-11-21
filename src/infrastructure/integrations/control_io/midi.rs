@@ -3,6 +3,7 @@ use super::*;
 pub(super) const VIRTUAL_SOURCE: &str = "vjay:virtual-input";
 pub(super) struct MidiInputs {
     connections: Vec<midir::MidiInputConnection<()>>,
+    #[cfg(unix)]
     virtual_input: Option<midir::MidiInputConnection<()>>,
     pub ports: Vec<MidiPort>,
     send: SyncSender<ControlEvent>,
@@ -11,6 +12,7 @@ impl MidiInputs {
     pub fn open(send: SyncSender<ControlEvent>) -> PortResult<Self> {
         let mut inputs = Self {
             connections: Vec::new(),
+            #[cfg(unix)]
             virtual_input: None,
             ports: Vec::new(),
             send,

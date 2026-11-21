@@ -109,6 +109,7 @@ pub(crate) fn texture(device: &wgpu::Device, extent: Extent) -> wgpu::Texture {
         format: wgpu::TextureFormat::Rgba8Unorm,
         usage: wgpu::TextureUsages::TEXTURE_BINDING
             | wgpu::TextureUsages::COPY_DST
+            | wgpu::TextureUsages::COPY_SRC
             | wgpu::TextureUsages::STORAGE_BINDING
             | wgpu::TextureUsages::RENDER_ATTACHMENT,
         view_formats: &[],

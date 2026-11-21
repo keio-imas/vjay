@@ -14,9 +14,19 @@ pub trait GpuVideoFactory: Send + Sync {
     ) -> PortResult<Box<dyn GpuVideoRuntime>>;
 }
 pub trait GpuVideoRuntime {
+    fn begin_frame(&mut self) -> PortResult<()> {
+        Ok(())
+    }
+    fn end_frame(&mut self) -> PortResult<()> {
+        Ok(())
+    }
     fn open(&mut self, path: &Path, extent: Extent) -> PortResult<Box<dyn GpuVideoDecoder>>;
 }
 pub trait GpuVideoDecoder {
+    /// Issue work before waiting on any source, so independent decoders overlap.
+    fn request_frame(&mut self, _seconds: f64) -> PortResult<()> {
+        Ok(())
+    }
     fn texture(&self) -> &wgpu::Texture;
     fn duration(&self) -> f64;
     fn ready(&self) -> bool;
@@ -51,7 +61,9 @@ impl UploadedVideo {
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Rgba8Unorm,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_DST
+                    | wgpu::TextureUsages::COPY_SRC,
                 view_formats: &[],
             }),
         }

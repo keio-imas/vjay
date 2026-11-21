@@ -44,18 +44,46 @@ bool MoviePlayer::encode(uint64_t key, id<MTLSharedEvent> event, uint64_t value)
     if (inFlight.load() >= 2 || !mutex.try_lock()) return false;
     auto frame = find(key); mutex.unlock();
     if (!frame) return false;
-    id<MTLCommandBuffer> command = [context->queue commandBuffer];
-    id<MTLComputeCommandEncoder> pass = [command computeCommandEncoder];
+    bool batched = context->batching;
+    if (batched && context->signalCount >= context->signals.size()) return false;
+    if (batched && !context->batch) context->batch = [context->queue commandBuffer];
+    id<MTLCommandBuffer> command = batched ? context->batch : [context->queue commandBuffer];
+    id<MTLComputeCommandEncoder> pass;
+    if (batched) {
+        if (!context->encoder) context->encoder = [command computeCommandEncoder];
+        pass = context->encoder;
+    } else pass = [command computeCommandEncoder];
     [pass setComputePipelineState:context->pipeline];
     [pass setTexture:CVMetalTextureGetTexture(frame->y) atIndex:0];
     [pass setTexture:CVMetalTextureGetTexture(frame->uv) atIndex:1];
     [pass setTexture:texture atIndex:2]; [pass setBuffer:uniforms offset:0 atIndex:0];
     [pass dispatchThreads:MTLSizeMake(texture.width,texture.height,1) threadsPerThreadgroup:MTLSizeMake(16,16,1)];
-    [pass endEncoding]; [command encodeSignalEvent:event value:value];
+    if (batched) context->signals[context->signalCount++] = {event, value};
+    else { [pass endEncoding]; [command encodeSignalEvent:event value:value]; }
     inFlight++;
     auto owner = shared_from_this();
     [command addCompletedHandler:^(id<MTLCommandBuffer>) { (void)frame; owner->inFlight.fetch_sub(1); }];
-    [command commit]; return true;
+    if (!batched) [command commit];
+    return true;
+}
+extern "C" void vjay_movie_batch_begin(void *context) {
+    @autoreleasepool {
+        auto &c = **static_cast<Context *>(context);
+        c.batching = true; // No allocation when every source keeps its last frame.
+        c.signalCount = 0;
+    }
+}
+extern "C" void vjay_movie_batch_end(void *context) {
+    @autoreleasepool {
+        auto &c = **static_cast<Context *>(context);
+        if (c.encoder) [c.encoder endEncoding];
+        for (unsigned i = 0; i < c.signalCount; i++) {
+            [c.batch encodeSignalEvent:c.signals[i].event value:c.signals[i].value];
+            c.signals[i].event = nil;
+        }
+        if (c.signalCount) [c.batch commit];
+        c.encoder = nil; c.batch = nil; c.signalCount = 0; c.batching = false;
+    }
 }
 extern "C" void *vjay_movie_context_create(void *device, void *queue, char *error, size_t capacity) {
     @autoreleasepool {

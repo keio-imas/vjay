@@ -18,6 +18,34 @@ impl Session {
         control_seconds: f64,
         delivery: crate::media::FrameDelivery,
     ) -> PortResult<()> {
+        let Some(trace) = self.frame_trace.clone() else {
+            return self.render_inner(seconds, control_seconds, delivery);
+        };
+        let wall = self.clock.seconds();
+        let interval = self.last_trace_clock.map_or(0.0, |t| wall - t);
+        self.last_trace_clock = Some(wall);
+        self.last_render_seconds = 0.0;
+        let begin = std::time::Instant::now();
+        let result = self.render_inner(seconds, control_seconds, delivery);
+        let total = begin.elapsed().as_secs_f64();
+        trace.record(crate::ports::telemetry::FrameSample {
+            monotonic_seconds: wall,
+            interval_seconds: interval,
+            target_seconds: self.frame_interval().as_secs_f64(),
+            control_seconds: (total - self.last_render_seconds).max(0.0),
+            render_seconds: self.last_render_seconds,
+            total_seconds: total,
+            failed: result.is_err(),
+            render: self.renderer.render_metrics(),
+        });
+        result
+    }
+    fn render_inner(
+        &mut self,
+        seconds: f64,
+        control_seconds: f64,
+        delivery: crate::media::FrameDelivery,
+    ) -> PortResult<()> {
         if !seconds.is_finite() || seconds < 0.0 {
             return Err("Invalid playhead time".into());
         }
@@ -139,7 +167,8 @@ impl Session {
         }
         let plan = self.plan.as_ref().ok_or("Missing execution plan")?;
         // Wrap at one day to retain useful f32 time precision in GPU uniforms.
-        self.renderer.render(
+        let begin = self.frame_trace.as_ref().map(|_| std::time::Instant::now());
+        let result = self.renderer.render(
             plan,
             FrameContext {
                 seconds: (seconds % 86400.0) as f32,
@@ -147,11 +176,15 @@ impl Session {
                 extent: self.extent,
                 delivery,
             },
-        )
+        );
+        if let Some(begin) = begin {
+            self.last_render_seconds = begin.elapsed().as_secs_f64();
+        }
+        result
     }
     pub(super) fn invalidate(&mut self, topology: bool) {
         self.dirty = true;
-        self.modified.set(true);
+        self.mark_modified();
         self.prepare |= topology;
     }
     fn synchronize(&mut self) -> PortResult<()> {
@@ -217,7 +250,8 @@ impl Session {
                 || old.previews.len() != candidate.previews.len()
                 || old.steps.len() != candidate.steps.len()
                 || old.steps.iter().zip(&candidate.steps).any(|(a, b)| {
-                    a.preview != b.preview
+                    a.operation.external_passthrough != b.operation.external_passthrough
+                        || a.preview != b.preview
                         || a.extra_previews != b.extra_previews
                         || a.still_image != b.still_image
                         || a.operation.parameters.len() != b.operation.parameters.len()
