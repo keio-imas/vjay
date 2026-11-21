@@ -44,7 +44,13 @@ fn folder_video_switches_on_click_index_and_signal_using_hardware_decoding() {
         vjay_infrastructure::gpu::programs::builtin_programs(),
     )
     .unwrap()
-    .with_asset_sources(Arc::new(FileCollectionFactory::default()));
+    .with_asset_sources(Arc::new(FileCollectionFactory::default()))
+    .with_gpu_video(Some(Arc::new(
+        vjay_infrastructure::media::macos::MetalMovieFactory::new(
+            "ffmpeg".into(),
+            "ffprobe".into(),
+        ),
+    )));
     let mut session = Session::new(
         Box::new(registry()),
         &runtime,

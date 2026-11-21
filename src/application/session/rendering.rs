@@ -4,7 +4,7 @@ impl Session {
     pub fn tick(&mut self) -> PortResult<()> {
         let now = self.clock.seconds();
         if !self.paused {
-            self.seconds += (now - self.last_clock).clamp(0.0, 0.25);
+            self.seconds += (now - self.last_clock).max(0.0);
         }
         self.last_clock = now;
         self.render_frame(self.seconds, now, crate::media::FrameDelivery::Latest)

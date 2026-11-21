@@ -76,7 +76,13 @@ fn two_deck_sample_loads_files_formats_seek_time_and_crossfades_gpu_video() {
         vjay_infrastructure::gpu::programs::builtin_programs(),
     )
     .unwrap()
-    .with_asset_sources(Arc::new(FileCollectionFactory::default()));
+    .with_asset_sources(Arc::new(FileCollectionFactory::default()))
+    .with_gpu_video(Some(Arc::new(
+        vjay_infrastructure::media::macos::MetalMovieFactory::new(
+            "ffmpeg".into(),
+            "ffprobe".into(),
+        ),
+    )));
     let mut session = Session::new(
         Box::new(registry()),
         &runtime,

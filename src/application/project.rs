@@ -1,3 +1,8 @@
+pub mod clipboard;
+#[cfg(test)]
+mod tests;
+pub mod value_display;
+pub mod workspace;
 use crate::ports::PortResult;
 use serde::{Deserialize, Serialize};
 use vjay_domain::{

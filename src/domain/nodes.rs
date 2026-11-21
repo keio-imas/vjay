@@ -1,0 +1,23 @@
+//! Built-in node implementations, separated from the graph and node contracts.
+pub(crate) mod annotations;
+pub mod builtins;
+pub(crate) mod control_nodes;
+pub(crate) mod deck_rate;
+pub(crate) mod effects;
+pub(crate) mod extra_nodes;
+pub(crate) mod file_nodes;
+pub(crate) mod fragment;
+pub(crate) mod lip_sync;
+pub(crate) mod loadable_video;
+pub(crate) mod math_nodes;
+pub(crate) mod media_device;
+pub(crate) mod noise;
+pub(crate) mod seek_control;
+pub(crate) mod sources;
+pub(crate) mod spatial;
+pub(crate) mod spatial3d;
+pub(crate) mod text_node;
+pub(crate) mod text_value;
+pub(crate) mod video_io_nodes;
+pub(crate) mod visual_nodes;
+pub(crate) mod web_video;

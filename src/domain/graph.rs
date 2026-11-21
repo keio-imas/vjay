@@ -1,3 +1,4 @@
+pub mod composition;
 use crate::node::{AssetId, NodeFactory, NodeTypeId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

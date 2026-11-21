@@ -140,6 +140,15 @@ fn run() -> PortResult<()> {
     let audio_ffmpeg = args.ffmpeg.clone();
     let audio_ffprobe = args.ffprobe.clone();
     #[cfg(target_os = "macos")]
+    let native_video: Option<Arc<dyn vjay_infrastructure::gpu::GpuVideoFactory>> = Some(Arc::new(
+        vjay_infrastructure::media::macos::MetalMovieFactory::new(
+            args.ffmpeg.clone(),
+            args.ffprobe.clone(),
+        ),
+    ));
+    #[cfg(not(target_os = "macos"))]
+    let native_video: Option<Arc<dyn vjay_infrastructure::gpu::GpuVideoFactory>> = None;
+    #[cfg(target_os = "macos")]
     let media: Arc<dyn VideoDecoderFactory> = Arc::new(FfmpegDecoderFactory::videotoolbox(
         args.ffmpeg,
         args.ffprobe,
@@ -161,6 +170,7 @@ fn run() -> PortResult<()> {
                     },
                 )?
                 .with_settings(headless_settings)
+                .with_gpu_video(native_video.clone())
                 .with_images(Arc::new(vjay_infrastructure::images::RasterImageLoader))
                 .with_prepared_images(headless_text)
                 .with_video_io(headless_video_io)
@@ -198,6 +208,7 @@ fn run() -> PortResult<()> {
                     .with_settings(settings)
                     .with_images(Arc::new(vjay_infrastructure::images::RasterImageLoader))
                     .with_prepared_images(text_images)
+                    .with_gpu_video(native_video.clone())
                     .with_video_io(video_io)
                     .with_asset_sources(web_assets)
                     .with_controls(move || {

@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod tests;
 use crate::{
     compiler::{RenderPlan, compile_with_previews},
     ports::*,
@@ -17,6 +19,7 @@ mod controls;
 mod editing;
 mod media;
 mod midi;
+mod parameters;
 mod preferences;
 mod projects;
 mod readout;
@@ -253,5 +256,11 @@ impl Session {
             return Err("No valid rendered frame to capture".into());
         }
         self.renderer.capture()
+    }
+    pub fn wait_idle(&self) -> PortResult<()> {
+        self.renderer.wait_idle()
+    }
+    pub fn media_metrics(&self) -> crate::media::MediaMetrics {
+        self.renderer.media_metrics()
     }
 }

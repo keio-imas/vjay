@@ -1,29 +1,15 @@
-//! Native platform, persistence, and WebGPU adapters.
-pub mod audio;
-pub mod control_io;
-pub mod gpu;
-#[cfg(target_os = "macos")]
-pub mod macos;
+//! Desktop, media, integration, persistence and rendering adapters.
+pub mod desktop;
+pub mod integrations;
 pub mod media;
-#[cfg(test)]
-mod open_node_tests;
-pub mod platform;
-pub mod storage;
-mod ui;
-
-#[doc(hidden)]
-pub mod demo;
-
-pub mod services;
-
-pub mod images;
-pub mod text_images;
-pub mod web_media;
-
-pub mod clipboard;
-
-pub mod file_collection;
-
-pub mod video_io;
-
-pub mod preferences;
+pub mod persistence;
+pub mod rendering;
+// Public facades keep adapter construction and external integrations source compatible.
+#[cfg(target_os = "macos")]
+pub use desktop::macos;
+pub(crate) use desktop::ui;
+pub use desktop::{clipboard, demo, platform};
+pub use integrations::{control_io, services};
+pub use media::{audio, file_collection, images, text_images, web_media};
+pub use persistence::{preferences, projects as storage};
+pub use rendering::{gpu, video_io};

@@ -1,0 +1,4 @@
+mode,pattern,width,height,frames,p50_ms,p95_ms,p99_ms,max_ms,total_ms,video_cpu_bytes,delivered,decoder_starts,seek_resets,cache_hits,over_16_67_ms
+native,sequential,3840,2160,120,5.139,16.005,16.964,17.057,1013.972,0,94,0,0,0,3
+native,jog,3840,2160,120,3.818,4.953,5.135,35.461,505.413,0,2,0,2,0,1
+native,seek,3840,2160,16,41.463,54.231,54.231,54.231,683.888,0,32,0,32,0,16

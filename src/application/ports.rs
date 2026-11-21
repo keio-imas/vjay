@@ -1,3 +1,5 @@
+pub mod control_io;
+pub mod media;
 use crate::{compiler::RenderPlan, project::ProjectDocument, session::Session};
 use std::path::Path;
 
@@ -36,6 +38,13 @@ pub struct CapturedFrame {
 }
 
 pub trait RenderBackend {
+    /// Explicit profiling/export fence; ordinary playback never waits for the GPU here.
+    fn wait_idle(&self) -> PortResult<()> {
+        Ok(())
+    }
+    fn media_metrics(&self) -> crate::media::MediaMetrics {
+        Default::default()
+    }
     fn set_vsync(&mut self, _: bool) -> PortResult<()> {
         Ok(())
     }

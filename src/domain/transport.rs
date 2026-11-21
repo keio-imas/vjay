@@ -1,3 +1,4 @@
+pub mod tempo;
 use crate::{
     execution::{ScalarKernel, SignalInputs},
     graph::NodeId,

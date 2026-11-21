@@ -8,6 +8,7 @@
 - [Sample projects and output previews](SAMPLES.md)
 - [Third-party licenses](THIRD_PARTY.md)
 - Validation records:
+  - [Native movie transfer, seeking and playback latency](benchmarks/playback-2026-11-22.md)
   - [Timecode readouts and two-deck template validation](benchmarks/timecode-two-deck-2026-11-21.md)
   - [Subpatches and media transport validation](benchmarks/patching-transport-2026-11-21.md)
   - [v0.2.0 settings, capture, and deck validation](benchmarks/settings-capture-deck-2026-11-21.md)

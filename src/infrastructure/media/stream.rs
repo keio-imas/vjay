@@ -33,6 +33,9 @@ pub(super) struct FfmpegStream {
     hardware: bool,
     requested: u64,
     delivered: Option<u64>,
+    starts: Arc<AtomicU64>,
+    frames_delivered: u64,
+    pixel_bytes: u64,
 }
 impl FfmpegStream {
     pub fn open(
@@ -51,6 +54,8 @@ impl FfmpegStream {
         let failed = Arc::new(AtomicBool::new(false));
         let error = Arc::new(Mutex::new(None));
         let wanted = Arc::new(AtomicU64::new(0));
+        let starts = Arc::new(AtomicU64::new(0));
+        let worker_starts = starts.clone();
         let (duration, fps) = (info.duration, info.fps);
         let (worker_child, worker_stop, worker_ready, worker_failed, worker_error, worker_wanted) = (
             child.clone(),
@@ -78,6 +83,7 @@ impl FfmpegStream {
                         ffmpeg,
                         prepared,
                         fps,
+                        worker_starts,
                     );
                     let size = extent.width as usize * extent.height as usize * 4;
                     let mut spare = None;
@@ -149,6 +155,9 @@ impl FfmpegStream {
             hardware,
             requested: 0,
             delivered: None,
+            starts,
+            frames_delivered: 0,
+            pixel_bytes: 0,
         })
     }
     fn failure(&self) -> String {
@@ -160,6 +169,16 @@ impl FfmpegStream {
     }
 }
 impl VideoDecoder for FfmpegStream {
+    fn metrics(&self) -> vjay_application::media::MediaMetrics {
+        let starts = self.starts.load(Ordering::Relaxed);
+        vjay_application::media::MediaMetrics {
+            frames_delivered: self.frames_delivered,
+            cpu_pixel_bytes: self.pixel_bytes,
+            decoder_starts: starts,
+            seek_resets: starts.saturating_sub(1),
+            cache_hits: 0,
+        }
+    }
     fn duration(&self) -> f64 {
         self.duration
     }
@@ -230,6 +249,8 @@ impl VideoDecoder for FfmpegStream {
             }
         }
         if let Some(frame) = &latest {
+            self.frames_delivered += 1;
+            self.pixel_bytes += frame.rgba.len() as u64;
             self.delivered = Some((frame.seconds * self.fps).round() as u64);
         }
         Ok(latest)

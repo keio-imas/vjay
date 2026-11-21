@@ -1,3 +1,11 @@
+pub mod capabilities;
+pub mod choices;
+pub mod execution;
+pub mod port;
+pub mod registry;
+pub mod schema;
+pub mod settings;
+pub mod uniform;
 use crate::{
     execution::{ImageKernel, ScalarKernel},
     settings::NodeSettings,

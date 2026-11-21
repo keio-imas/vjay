@@ -24,14 +24,16 @@ cargo run --release -- --ffmpeg /path/to/ffmpeg --ffprobe /path/to/ffprobe
 ```
 
 Video and audio codec support depends on the installed FFmpeg build. On macOS, playback
-requires VideoToolbox and `scale_vt` support. Unsupported source formats may need the
+uses native VideoToolbox decoding and Metal conversion. The comparative/portable FFmpeg
+adapter additionally requires `scale_vt` for its hardware mode. Unsupported source formats may need the
 hardware-encoded compatibility cache described in the [user guide](USER_GUIDE.md#video-and-audio).
 The procedural [sample projects](SAMPLES.md) need no external media; Text uses installed fonts.
 
 ## Camera access on macOS
 
 The native camera bridge is built from `native/macos/capture.mm` by Cargo using the Apple
-SDK. It links system AVFoundation, CoreVideo, Metal, and Metal Performance Shaders.
+SDK. It links system AVFoundation, CoreMedia, CoreVideo, VideoToolbox, CoreGraphics, Metal,
+and Metal Performance Shaders for capture and movie playback.
 `NSCameraUsageDescription` is embedded in the executable. A local application bundle with
 the same declaration can be created after building:
 

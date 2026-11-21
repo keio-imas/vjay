@@ -147,27 +147,6 @@ impl Session {
         self.modified.set(true);
         Ok(())
     }
-    pub fn set_parameter(&mut self, node: NodeId, parameter: usize, value: f32) -> PortResult<()> {
-        let trigger = self.project.graph.node(node).is_ok_and(|record| {
-            let caps = self.descriptor(&record.type_id).capabilities;
-            caps.value_control.is_some_and(|binding| {
-                binding.parameter == parameter && binding.request_trigger_output.is_some()
-            }) || caps.momentary_parameter == Some(parameter)
-                && value > 0.0
-                && record.parameters[parameter] <= 0.0
-        });
-        self.project
-            .graph
-            .set_parameter(node, parameter, value, self.nodes.as_ref())
-            .map_err(|e| e.to_string())?;
-        if trigger {
-            self.signals
-                .events
-                .push(crate::control_io::ControlEvent::Trigger(node));
-        }
-        self.invalidate(false);
-        Ok(())
-    }
     pub fn set_extent(&mut self, extent: Extent) -> PortResult<()> {
         Extent::new(extent.width, extent.height)?;
         if self.extent != extent {

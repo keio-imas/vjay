@@ -109,20 +109,23 @@ playback. Source and destination ranges must be valid before an edit is applied.
 to its end and pauses. External Position changes can subsequently override manual navigation.
 Pause stops the media timeline and shader `iTime`; buttons, envelopes, and LFOs keep running.
 
-macOS uses VideoToolbox decode and GPU scaling. Supported H.264 8-bit 4:2:0, HEVC 8/10-bit
-4:2:0, and ProRes 422 play directly. Formats such as H.264 10-bit 4:2:2 are prepared into a
+macOS uses hardware VideoToolbox decode with native Metal texture transfer, conversion
+and scaling. Supported H.264 8-bit 4:2:0, HEVC 8/10-bit 4:2:0, and ProRes 422 play directly. Formats such as H.264 10-bit 4:2:2 are prepared into a
 ProRes HQ cache without changing the source. Initial decoding of an unsupported format
 uses the CPU; cache encoding uses hardware VideoToolbox. Preparation status is shown and
 the media timeline waits for readiness. There is no silent CPU playback fallback.
 
 Cache files use the OS temporary directory under `vjay-video-cache-v1`, source identity,
 size, and modification time. The limit is 6 GiB per clip with a 512 MiB free-space reserve.
-Unused old caches can be removed before creating new ones. Video input still crosses CPU
-memory for RGBA conversion/upload and is not zero-copy.
+Unused old caches can be removed before creating new ones. Native playback maps decoder
+IOSurfaces directly to Metal textures; it does not use an RGBA pipe or CPU pixel upload.
+A bounded frame cache accelerates nearby repeated Seek/Jog requests. A first seek into a
+long GOP still needs reference-frame decoding and can take much longer than one frame.
 
-Explicit seeks and subrange wraps may restart the decoder; ordinary full-range loops
-continue it. Audio scrubbing keeps ready PCM while preparing new positions, with an 8 MiB
-page cache per source. Speed uses linear resampling and changes pitch. Sample-accurate sync,
+Native seeks and wraps preserve the hardware decoder session; cache misses can reposition
+the compressed sample reader. The comparative FFmpeg adapter may restart its process.
+Audio scrubbing keeps ready PCM while preparing new positions, with an 8 MiB page cache
+per source. Speed uses linear resampling and changes pitch. Sample-accurate sync,
 pitch-preserving time stretch, and automatic audio matching are not implemented.
 
 ## Files and selectable sources

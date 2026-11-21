@@ -5,7 +5,7 @@ use std::{
     process::{Child, ChildStdout, Command, Stdio},
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     thread::JoinHandle,
 };
@@ -23,6 +23,7 @@ pub(super) struct DecoderProcess {
     start: u64,
     diagnostics: Arc<Mutex<Vec<u8>>>,
     reader: Option<JoinHandle<()>>,
+    starts: Arc<AtomicU64>,
 }
 impl DecoderProcess {
     pub fn new(
@@ -31,6 +32,7 @@ impl DecoderProcess {
         ffmpeg: PathBuf,
         prepared: PreparedVideo,
         fps: f64,
+        starts: Arc<AtomicU64>,
     ) -> Self {
         Self {
             slot,
@@ -43,6 +45,7 @@ impl DecoderProcess {
             start: 0,
             diagnostics: Arc::new(Mutex::new(Vec::new())),
             reader: None,
+            starts,
         }
     }
     fn close(&mut self) {
@@ -107,6 +110,7 @@ impl DecoderProcess {
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| format!("Cannot run FFmpeg: {e}"))?;
+        self.starts.fetch_add(1, Ordering::Relaxed);
         self.stdout = child.stdout.take();
         let mut stderr = child.stderr.take().ok_or("Missing decoder diagnostics")?;
         self.diagnostics.lock().map_err(|e| e.to_string())?.clear();

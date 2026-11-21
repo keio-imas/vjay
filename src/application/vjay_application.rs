@@ -1,32 +1,11 @@
-//! Use cases and ports. Adapters are injected by the executable.
-pub mod asset_sources;
-pub mod audio;
-mod bindings;
-pub mod compiler;
-pub mod control_io;
-pub mod media;
-pub mod media_timeline;
-mod port_migrations;
+//! Use cases, execution plans and adapter ports. Concrete adapters are injected by main.
+pub mod engine;
 pub mod ports;
+pub mod preferences;
 pub mod project;
 pub mod session;
-pub mod signals;
-pub mod value_display;
-pub mod workspace;
-
-#[cfg(test)]
-mod project_tests;
-#[cfg(test)]
-mod session_tests;
-
-pub mod services;
-
-pub mod clipboard;
-
-mod file_media;
-
-pub mod preferences;
-
-pub mod composition;
-
-mod transport_migrations;
+// Retain the public API while keeping implementation files grouped by responsibility.
+pub use engine::{asset_sources, audio, compiler, composition, media_timeline, services, signals};
+pub(crate) use engine::{bindings, file_media, port_migrations, transport_migrations};
+pub use ports::{control_io, media};
+pub use project::{clipboard, value_display, workspace};

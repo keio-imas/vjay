@@ -25,21 +25,42 @@ src/
   domain/
     Cargo.toml
     vjay_domain.rs
-    node.rs
+    node.rs                   # public node contract
+    node/                     # schemas, ports, capabilities, registration
     graph.rs
-    graph/
-      ports.rs
+    graph/                    # connections, composition, validation
+    nodes.rs
+    nodes/                    # concrete built-in definitions and kernels
+    transport.rs
+    transport/                # tempo and media values
   application/
     Cargo.toml
     vjay_application.rs
+    ports.rs
+    ports/                    # portable media and control interfaces
+    engine.rs
+    engine/                   # compilers, signals, audio, media timeline
     session.rs
-    compiler.rs
+    session/                  # editing and use cases
+    project.rs
+    project/                  # documents, clipboard, display values
   infrastructure/
     Cargo.toml
     vjay_infrastructure.rs
-    gpu.rs
-    ui.rs
+    desktop.rs
+    desktop/                  # GPUI and native window PAL
+    rendering.rs
+    rendering/                # wgpu renderer and video sharing PAL
+    media.rs
+    media/                    # movie, audio, image and file adapters
+    integrations.rs
+    integrations/             # MIDI, OSC, Link, rekordbox
+    persistence.rs
+    persistence/              # project and preference storage
 ```
+
+Layer roots re-export existing public module names for API compatibility. These aliases do
+not arrange source files; normal module declarations own the directory structure.
 
 Modules follow normal Rust file conventions: `graph.rs` and `graph/ports.rs`.
 Do not introduce `mod.rs`, ordinary `#[path]` indirection, or another crate-named
@@ -144,8 +165,12 @@ Scalar values and state use dense arrays with reusable scratch storage. Text val
 `Arc<str>`; file values use `Option<Arc<Path>>`. Type-specific schedules use resolved slots.
 The graph's stable-ID map is not a substitute for these schedules.
 
-Parameter edits can rebuild bindings without rebuilding GPU resources when shader,
-resource layout, and topology remain compatible. Moving nodes, resizing panels, and
+Ordinary parameter edits update preallocated cells in the dense scalar bank. Compiled
+scalar, media, audio and uniform references read those cells without rebuilding schedules.
+The edited definition is lowered once to detect shader, selector or resource changes.
+Edits affecting prepared images, structural lowering or unmapped shader parameters retain
+the compilation path; structural changes still rebuild bindings and prepare resources
+when required. Moving nodes, resizing panels, and
 zooming the patch do not recompile the rendering graph. Schema migrations preserve old
 port numbers, parameters, and control references when loading existing projects.
 
@@ -211,6 +236,7 @@ rerasterizing text merely to move or scale it.
 | Compiled image texture budget | 512 MiB |
 | GPU pass interface | 8 image inputs and 64 float uniforms |
 | Concurrent media sources | 8 video sources; 8 audio sources |
+| Native movie cache | 4 requested frames, max(64 MiB, one decoded frame); 4 lookahead frames/64 MiB; 2 conversions in flight |
 | Shared video inputs | 8 |
 | NDI OUT transfer buffers | 512 MiB total |
 | Audio PCM cache | 8 MiB per source |
@@ -230,10 +256,40 @@ Video workers use bounded requests, results, and recycled buffers. GUI playback 
 the latest frame without waiting; exact delivery is an explicit headless/test policy.
 Decoders are reused when node, asset, and extent remain compatible.
 
-macOS selects VideoToolbox decoding and GPU scaling. Unsupported source formats can be
-prepared once into a hardware-encoded ProRes cache. Initial decoding of such sources uses
-the CPU. RGBA conversion and upload still cross CPU memory, so video input is not zero-copy.
-There is no silent CPU playback fallback for the macOS hardware policy.
+The desktop loop schedules fixed deadlines, excluding completed render work from the next
+wait. Overruns skip missed slots instead of creating catch-up bursts. Media and signal
+clocks consume actual elapsed time after a UI stall; a 250 ms delta clamp no longer causes
+permanent drift. Program presentation targets the configured rate while routine editor
+notifications are capped at 30 Hz. Input handlers still request immediate UI updates.
+Rendering still runs on the GPUI thread: this reduces avoidable jitter but does not provide
+an independent realtime rendering thread or protect against all expensive UI work.
+
+macOS injects `MetalMovieFactory` in `main.rs`. A persistent hardware VideoToolbox session
+decodes compressed AVFoundation samples into IOSurface-backed NV12 frames. CoreVideo maps
+the planes to Metal textures; a shared compute pipeline converts, scales, orients and
+letterboxes them into a persistent wgpu input texture. Shared events order native work and
+wgpu submissions without CPU pixel readback. These wgpu-specific `GpuVideoFactory`,
+`GpuVideoRuntime` and `GpuVideoDecoder` interfaces are internal rendering PAL contracts in
+infrastructure; application still depends only on `RenderBackend` and portable media ports.
+
+One worker per source coalesces requests. A bounded requested-frame LRU retains at most four
+frames per source, targeting 64 MiB (at least one decoded frame must fit). A separate
+four-frame/64 MiB lookahead preserves future pictures that precede B-frames in decode order;
+older GOP preroll is not cached. Backward or distant cache misses, and requests for consumed
+pictures that have been evicted, reposition the compressed sample reader at a sync sample
+while preserving the hardware session.
+Reference-only preroll is batched and suppresses unused output surfaces. Cold long-GOP seeks
+still require decoding references and can be slow. At most two native conversion commands
+are in flight per source. GUI playback accepts the newest completed request when decoding
+lags; exact delivery waits for the requested frame. Removing a source cancels work and
+reaps the worker outside the UI thread; native frames stay retained through GPU completion.
+
+Unsupported source formats can be prepared once into a hardware-encoded ProRes cache.
+Initial decoding of such sources uses the CPU. Native playback requires hardware decoding;
+there is no silent software playback fallback. The existing FFmpeg RGBA adapter remains
+available for other platforms, tests and comparative benchmarks, and still crosses CPU
+memory. Native Metal movie input is currently macOS-only, outputs 8-bit SDR, and does not
+implement HDR tone mapping or a complete color-managed workflow.
 
 Audio is optional and requires a route to an audio sink. Cue/headphone output is for the
 VJ to monitor material while matching the DJ's independent audio. The audio callback does
