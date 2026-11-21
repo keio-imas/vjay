@@ -68,5 +68,6 @@ pub fn project(factory: &dyn NodeFactory) -> PortResult<Project> {
         controls,
         assets: Vec::new(),
         workspace: Default::default(),
+        subpatches: Vec::new(),
     })
 }

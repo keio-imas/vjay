@@ -16,6 +16,7 @@ mod cables;
 mod chrome;
 mod clipboard;
 mod collection;
+mod control_display;
 mod control_inspector;
 mod controls;
 mod dropdowns;
@@ -39,6 +40,7 @@ mod rendering;
 mod selection;
 mod settings;
 mod status;
+mod subpatch;
 mod uniforms;
 mod video_sync;
 mod widgets;
@@ -56,6 +58,7 @@ use theme::*;
 #[derive(Clone, Copy)]
 enum Drag {
     MediaJog(NodeId, Position),
+    MediaNudge(NodeId),
     MediaSeek(NodeId, f32, f32),
     Nodes,
     Pan(Position, Position),

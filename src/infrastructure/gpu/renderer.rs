@@ -187,11 +187,11 @@ impl RenderBackend for WgpuRenderer {
             pass.draw(0..3, 0..1);
             drop(pass);
             // Consume the preview before pooled output textures may be reused.
-            if let Some(index) = step.preview
-                && let Some(p) = &self.presentation
-            {
-                p.borrow_mut()
-                    .encode_node(index, &self.device, &mut encoder)?;
+            if let Some(p) = &self.presentation {
+                for index in step.preview.iter().chain(&step.extra_previews) {
+                    p.borrow_mut()
+                        .encode_node(*index, &self.device, &mut encoder)?;
+                }
             }
         }
         if !plan.program_active {

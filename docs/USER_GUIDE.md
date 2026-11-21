@@ -163,14 +163,12 @@ Image, then compose its Image output; missing artwork clears the previous cover.
 
 The DJ's floor audio is the reference. VJAY's audio is local monitoring for the VJ.
 
-Use the clip's headphone audio to match the floor track by ear. No BPM value is required.
-Select the video, turn on **Cue audio**, and press **Connect Deck Sync…**. In **By ear** mode,
-adjust Playback rate to remove drift, hold Nudge to align beats, and use Jog / Cue for
-phrase alignment. Video and optional clip audio follow the same controls. Existing
-controllers retain their saved BPM ratio mode.
+Use the clip's headphone audio to match the floor track by ear. The media node owns its
+Seek, Jog, Pause, Nudge and Cue controls. Deck Rate supplies only Speed. Seek Control
+separates the user's Seek request from the actual Playhead feedback shown by its slider.
 
-See [Settings, capture, and matching by ear](SETTINGS_AND_CUE.md) for the full workflow,
-audio routing, capture permissions, and output settings.
+See [Subpatches and media transport](PATCHING_AND_TRANSPORT.md) for setup, graph-triggered
+transport actions, Control Panel seek bars, and named or unnamed patch composition.
 
 ### Trigger envelopes
 
@@ -245,11 +243,11 @@ presentation is not implemented. Setup and environment paths are in [BUILD](BUIL
 | Effects | Luma key, Chroma key, Strobe, GLSL fragment, Threshold, Vignette |
 | Compositing | Mix, Blend, Composite/Over, Image selector, Grid, Duplicate grid, Mask, Wipe, Output |
 | 3D | 3D Transform, 3D Shape, 3D Tunnel |
-| Controls | Files, Text Value, Slider, Knob, Toggle, Button, XY pad, Number |
+| Controls | Seek Control, Files, Text Value, Slider, Knob, Toggle, Button, XY pad, Number |
 | Signals | Constant, LFO, Tap tempo, Smooth, Counter, Value selector, Sample and hold, Attack/Release, Signal noise |
-| Timing | Deck Sync (By ear / BPM ratio) |
+| Timing | Deck Rate (By ear / BPM ratio), Deck Sync (legacy) |
 | Math | Add, Subtract, Multiply, Divide, Modulo, Power, Min/Max, Absolute, Sine, Cosine, Floor, Round, Fraction, Compare, AND/OR/NOT, Quantize, Map range, Clamp, Easing |
-| Organization | Comment, Label |
+| Organization | Comment, Label, Subpatch, In, Out |
 | Input | Keyboard, MIDI in, OSC in |
 | Audio | Audio gain, Audio mix, Audio Out, Cue/Headphones |
 | Video I/O | NDI IN/OUT, Syphon IN/OUT, Spout IN/OUT |

@@ -11,6 +11,7 @@ pub mod ports;
 pub mod project;
 pub mod session;
 pub mod signals;
+pub mod value_display;
 pub mod workspace;
 
 #[cfg(test)]
@@ -25,3 +26,7 @@ pub mod clipboard;
 mod file_media;
 
 pub mod preferences;
+
+pub mod composition;
+
+mod transport_migrations;

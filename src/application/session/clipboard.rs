@@ -1,8 +1,7 @@
 use super::*;
 use crate::clipboard::PatchFragment;
-use crate::media::MediaAsset;
-use std::collections::{HashMap, HashSet};
-use vjay_domain::{graph::MAX_NODES, node::AssetId};
+use std::collections::HashSet;
+use vjay_domain::node::AssetId;
 impl Session {
     pub fn copy_nodes(&self, ids: &[NodeId]) -> PortResult<PatchFragment> {
         let ids: HashSet<_> = ids.iter().copied().collect();
@@ -22,6 +21,17 @@ impl Session {
         nodes.sort_by_key(|n| n.id.0);
         let assets: HashSet<_> = nodes.iter().filter_map(|n| n.asset).collect();
         Ok(PatchFragment {
+            subpatches: self
+                .project
+                .subpatches
+                .iter()
+                .filter(|s| ids.contains(&s.node))
+                .map(|s| SubpatchDocument {
+                    node: s.node,
+                    source: s.source.clone(),
+                    document: Box::new(s.project.document()),
+                })
+                .collect(),
             nodes,
             connections: self
                 .project
@@ -50,120 +60,113 @@ impl Session {
         fragment: &PatchFragment,
         anchor: Point,
     ) -> PortResult<Vec<NodeId>> {
-        if fragment.assets.len() > MAX_NODES
-            || fragment.nodes.is_empty()
-            || fragment.nodes.len() > MAX_NODES
-            || fragment.positions.len() != fragment.nodes.len()
-            || fragment.connections.len() > MAX_NODES * 80
-            || !anchor.x.is_finite()
-            || !anchor.y.is_finite()
-        {
+        if fragment.nodes.is_empty() || !anchor.x.is_finite() || !anchor.y.is_finite() {
             return Err("Invalid clipboard patch".into());
         }
-        let ids: HashSet<_> = fragment.nodes.iter().map(|n| n.id).collect();
-        let positions: HashMap<_, _> = fragment
+        let mut document = ProjectDocument {
+            version: 1,
+            nodes: fragment.nodes.clone(),
+            connections: fragment.connections.clone(),
+            positions: fragment.positions.clone(),
+            assets: fragment.assets.clone(),
+            controls: Vec::new(),
+            workspace: Default::default(),
+            output: None,
+            subpatches: fragment.subpatches.clone(),
+        };
+        let (mut used, mut assets) = self.used_identities();
+        let copied = Project::restore(document.clone(), self.nodes.as_ref())?;
+        let (n, a) = copied.all_ids();
+        used.extend(n);
+        assets.extend(a);
+        used.insert(NodeId(self.next_node_id.saturating_sub(1)));
+        assets.insert(AssetId(self.next_asset_id.saturating_sub(1)));
+        crate::composition::identities::normalize(&mut document, &used, &assets)?;
+        let mut pasted = Project::restore(document, self.nodes.as_ref())?;
+        for asset in &mut pasted.assets {
+            if let Some(existing) = self.project.assets.iter().find(|a| a.path == asset.path) {
+                let old = asset.id;
+                asset.id = existing.id;
+                for record in pasted.graph.nodes().to_vec() {
+                    if record.asset == Some(old) {
+                        pasted
+                            .graph
+                            .bind_asset(record.id, existing.id, self.nodes.as_ref())
+                            .map_err(|e| e.to_string())?;
+                    }
+                }
+            }
+        }
+        for record in pasted.graph.nodes().to_vec() {
+            if self
+                .nodes
+                .get(&record.type_id)?
+                .boundary(&record.settings)
+                .is_some()
+            {
+                let mut settings = record.settings.clone();
+                settings
+                    .properties
+                    .insert("port.key".into(), format!("port-{}", record.id.0));
+                pasted
+                    .graph
+                    .set_settings(record.id, settings, self.nodes.as_ref())
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        let left = pasted
             .positions
             .iter()
-            .map(|p| (p.node, p.position))
-            .collect();
-        if ids.len() != fragment.nodes.len()
-            || positions.len() != ids.len()
-            || !ids.iter().all(|n| positions.contains_key(n))
-            || fragment
-                .connections
-                .iter()
-                .any(|e| !ids.contains(&e.from) || !ids.contains(&e.to))
-        {
-            return Err("Invalid clipboard references".into());
-        }
-        let left = positions
-            .values()
-            .map(|p| p.x)
+            .map(|p| p.position.x)
             .fold(f32::INFINITY, f32::min);
-        let top = positions
-            .values()
-            .map(|p| p.y)
+        let top = pasted
+            .positions
+            .iter()
+            .map(|p| p.position.y)
             .fold(f32::INFINITY, f32::min);
-        let mut graph = self.project.graph.clone();
-        let mut assets = self.project.assets.clone();
-        let mut asset_map = HashMap::new();
-        let needed: HashSet<_> = fragment.nodes.iter().filter_map(|n| n.asset).collect();
-        let mut seen = HashSet::new();
-        for asset in &fragment.assets {
-            if !seen.insert(asset.id) || asset.path.as_os_str().is_empty() {
-                return Err("Invalid clipboard assets".into());
-            }
-            if !needed.contains(&asset.id) {
-                continue;
-            }
-            let id = if let Some(old) = assets.iter().find(|a| a.path == asset.path) {
-                old.id
-            } else {
-                let id = AssetId(
-                    assets
-                        .iter()
-                        .map(|a| a.id.0)
-                        .max()
-                        .map_or(Some(0), |n| n.checked_add(1))
-                        .filter(|n| *n != u64::MAX)
-                        .ok_or("Asset IDs exhausted")?,
-                );
-                assets.push(MediaAsset {
-                    id,
-                    path: asset.path.clone(),
-                });
-                id
-            };
-            asset_map.insert(asset.id, id);
-        }
-        let mut mapping = HashMap::new();
-        let mut new_positions = Vec::new();
-        let mut result = Vec::new();
-        for record in &fragment.nodes {
-            let mut node = record.clone();
-            node.asset = node
-                .asset
-                .map(|a| {
-                    asset_map
-                        .get(&a)
-                        .copied()
-                        .ok_or("Clipboard asset is missing")
-                })
-                .transpose()?;
-            let id = graph
-                .insert_copy(node, self.nodes.as_ref())
+        let mut candidate = self.project.clone();
+        let result = pasted
+            .graph
+            .nodes()
+            .iter()
+            .map(|n| n.id)
+            .collect::<Vec<_>>();
+        for n in pasted.graph.nodes() {
+            candidate
+                .graph
+                .insert(n.clone(), self.nodes.as_ref())
                 .map_err(|e| e.to_string())?;
-            let p = positions[&record.id];
-            let position = Point {
-                x: p.x - left + anchor.x,
-                y: p.y - top + anchor.y,
+        }
+        for e in pasted.graph.connections() {
+            candidate.graph.connect(e).map_err(|e| e.to_string())?;
+        }
+        for mut p in pasted.positions {
+            p.position = Point {
+                x: p.position.x - left + anchor.x,
+                y: p.position.y - top + anchor.y,
             };
-            if !position.x.is_finite()
-                || !position.y.is_finite()
-                || position.x.abs() > 1e6
-                || position.y.abs() > 1e6
-            {
+            if p.position.x.abs() > 1e6 || p.position.y.abs() > 1e6 {
                 return Err("Invalid clipboard layout".into());
             }
-            mapping.insert(record.id, id);
-            new_positions.push(NodePosition { node: id, position });
-            result.push(id);
+            candidate.positions.push(p);
         }
-        let migrations =
-            crate::port_migrations::PortMigrations::new(&fragment.nodes, self.nodes.as_ref())?;
-        for edge in &fragment.connections {
-            let edge = migrations.connection(*edge)?;
-            graph
-                .connect(Connection {
-                    from: mapping[&edge.from],
-                    to: mapping[&edge.to],
-                    ..edge
-                })
-                .map_err(|e| e.to_string())?;
+        for asset in pasted.assets {
+            if !candidate.assets.iter().any(|a| a.id == asset.id) {
+                candidate.assets.push(asset);
+            }
         }
-        self.project.graph = graph;
-        self.project.assets = assets;
-        self.project.positions.extend(new_positions);
+        candidate.subpatches.extend(pasted.subpatches);
+        self.project = candidate;
+        let (n, a) = self.used_identities();
+        self.next_node_id = self
+            .next_node_id
+            .max(n.iter().map(|n| n.0).max().unwrap_or(0).saturating_add(1));
+        self.next_asset_id = self.next_asset_id.max(
+            a.iter()
+                .map(|a| a.0)
+                .max()
+                .map_or(0, |a| a.saturating_add(1)),
+        );
         self.invalidate(true);
         Ok(result)
     }

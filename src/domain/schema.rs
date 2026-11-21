@@ -8,6 +8,7 @@ pub struct PortInfo {
     pub name: String,
     pub signal: SignalType,
     pub optional: bool,
+    pub delayed: bool,
 }
 impl From<&Port> for PortInfo {
     fn from(p: &Port) -> Self {
@@ -15,6 +16,7 @@ impl From<&Port> for PortInfo {
             name: p.name.into(),
             signal: p.signal,
             optional: p.optional,
+            delayed: false,
         }
     }
 }
@@ -81,6 +83,7 @@ impl NodeSchema {
                     name: p.name.clone(),
                     signal: SignalType::Scalar,
                     optional: true,
+                    delayed: false,
                 })
         })
     }

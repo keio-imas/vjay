@@ -23,7 +23,8 @@ impl Session {
         Ok(())
     }
     pub fn save_project_as(&mut self, path: PathBuf) -> PortResult<()> {
-        self.store.save_to(&path, &self.project.document())?;
+        self.store
+            .save_to(&path, &self.root_snapshot()?.document())?;
         self.store.set_location(path)?;
         self.untitled = false;
         self.modified.set(false);

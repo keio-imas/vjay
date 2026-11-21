@@ -114,6 +114,13 @@ impl Session {
         Ok(())
     }
     pub fn control_value(&self, control: &ControlBinding) -> f32 {
+        if control.target == ControlTarget::Parameter
+            && let Some(binding) = self.schema(control.node).capabilities.value_control
+            && control.parameter == binding.parameter
+            && let Some(value) = self.signals.output(control.node, binding.display_output)
+        {
+            return value;
+        }
         match control.target {
             ControlTarget::Parameter => self
                 .signals
@@ -225,9 +232,11 @@ impl Session {
             .position(|port| port.signal == signal)
             .ok_or("Node has no compatible output")?;
         let mut candidate = self.project.graph.clone();
+        candidate.reserve_ids_until(self.next_node_id);
         let id = candidate
             .add(type_id, self.nodes.as_ref())
             .map_err(|e| e.to_string())?;
+        let next_node_id = id.0.checked_add(1).ok_or("Node IDs exhausted")?;
         candidate.disconnect(edge.to, edge.input);
         candidate
             .connect(Connection {
@@ -246,6 +255,7 @@ impl Session {
             })
             .map_err(|e| e.to_string())?;
         self.project.graph = candidate;
+        self.next_node_id = next_node_id;
         self.project
             .positions
             .push(NodePosition { node: id, position });

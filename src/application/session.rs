@@ -9,6 +9,9 @@ use vjay_domain::{
 };
 mod clipboard;
 mod deck;
+mod encapsulate;
+mod subpatch;
+mod subpatch_files;
 pub use deck::ClipPosition;
 mod controls;
 mod editing;
@@ -16,6 +19,7 @@ mod media;
 mod midi;
 mod preferences;
 mod projects;
+mod readout;
 mod rendering;
 mod settings;
 mod sync;
@@ -23,10 +27,13 @@ mod uniforms;
 pub use midi::MidiActivity;
 
 pub struct Session {
+    ancestors: Vec<subpatch::Ancestor>,
+    execution: crate::composition::Expanded,
+    next_node_id: u64,
+    next_asset_id: u64,
     preferences: crate::preferences::Preferences,
     settings_store: std::sync::Arc<dyn crate::preferences::SettingsStore>,
     modified: std::cell::Cell<bool>,
-    deck_rates: Vec<(NodeId, f32)>,
     sync_taps: std::collections::HashMap<NodeId, vjay_domain::tempo::TapTempo>,
     untitled: bool,
     file_media: crate::file_media::FileMedia,
@@ -71,11 +78,22 @@ impl Session {
         let project = Project::empty(nodes.as_ref())?;
         let clock = runtime.create_clock();
         let last_clock = clock.seconds();
+        let next_node_id = project
+            .graph
+            .nodes()
+            .iter()
+            .map(|n| n.id.0)
+            .max()
+            .unwrap_or(0)
+            + 1;
         Ok(Self {
+            ancestors: Vec::new(),
+            execution: Default::default(),
+            next_node_id,
+            next_asset_id: 0,
             preferences: Default::default(),
             settings_store: runtime.settings_store(),
             modified: std::cell::Cell::new(false),
-            deck_rates: Vec::new(),
             sync_taps: Default::default(),
             untitled: true,
             file_media: Default::default(),
@@ -161,7 +179,8 @@ impl Session {
     }
 
     pub fn schema(&self, id: NodeId) -> &vjay_domain::schema::NodeSchema {
-        self.project
+        self.owner(id)
+            .expect("node is part of the project")
             .graph
             .schema(id)
             .expect("registered graph schema")
@@ -171,7 +190,7 @@ impl Session {
     }
 
     pub fn save(&self) -> PortResult<()> {
-        self.store.save(&self.project.document())?;
+        self.store.save(&self.root_snapshot()?.document())?;
         self.modified.set(false);
         Ok(())
     }
@@ -184,6 +203,9 @@ impl Session {
     pub fn restore(&mut self, document: crate::project::ProjectDocument) -> PortResult<()> {
         let candidate = Project::restore(document, self.nodes.as_ref())?;
         self.project = candidate;
+        self.ancestors.clear();
+        self.execution = Default::default();
+        self.reserve_identities();
         self.asset_sources.reset();
         self.signals = Default::default();
         self.file_media = Default::default();
@@ -193,7 +215,7 @@ impl Session {
         self.seconds = 0.0;
         self.last_clock = self.clock.seconds();
         self.midi.learning = None;
-        if self.project.graph.nodes().iter().any(|n| {
+        if self.project.any_node(&|n| {
             self.descriptor(&n.type_id)
                 .capabilities
                 .settings
@@ -204,20 +226,21 @@ impl Session {
         self.invalidate(true);
         self.modified.set(false);
         self.sync_taps.clear();
-        self.deck_rates.clear();
         Ok(())
     }
     pub fn store_location(&self) -> &std::path::Path {
         self.store.location()
     }
     pub fn window_output(&self, node: NodeId) -> bool {
-        self.project.graph.node(node).ok().is_some_and(|n| {
-            self.schema(node).capabilities.program_output.is_some()
-                && self
-                    .nodes
-                    .get(&n.type_id)
-                    .is_ok_and(|d| d.video_sink(&n.settings).is_none())
-        })
+        self.owner(node)
+            .and_then(|p| p.graph.node(node).ok())
+            .is_some_and(|n| {
+                self.schema(node).capabilities.program_output.is_some()
+                    && self
+                        .nodes
+                        .get(&n.type_id)
+                        .is_ok_and(|d| d.video_sink(&n.settings).is_none())
+            })
     }
     pub fn video_sources(&self, provider: &str) -> Vec<String> {
         self.renderer.video_sources(provider)

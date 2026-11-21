@@ -42,6 +42,7 @@ impl ValueRef {
     }
 }
 struct SignalStep {
+    feedback: bool,
     node: NodeId,
     type_id: String,
     settings: NodeSettings,
@@ -54,6 +55,7 @@ struct SignalStep {
 }
 #[derive(Default)]
 pub struct SignalEngine {
+    aliases: Vec<((NodeId, usize), (NodeId, usize))>,
     text: text::TextEngine,
     files: files::FileEngine,
     text_revision: u64,
@@ -61,6 +63,7 @@ pub struct SignalEngine {
     states: Vec<f64>,
     pub values: Vec<f32>,
     outputs: HashMap<(NodeId, usize), usize>,
+    inputs: HashMap<(NodeId, usize), ValueRef>,
     parameters: HashMap<(NodeId, usize), ValueRef>,
     capabilities: HashMap<NodeId, vjay_domain::capabilities::Capabilities>,
     input: input::InputState,
@@ -92,7 +95,10 @@ impl SignalEngine {
         self.steps.clear();
         self.states.clear();
         self.outputs.clear();
+        self.aliases.clear();
         self.parameters.clear();
+        self.inputs.clear();
+        self.input.media.retain(|n, _| live.contains(n));
         self.capabilities.clear();
         let bindings = PortBindings::new(graph)?;
         let mut slots = vec![None; bindings.output_count()];
@@ -117,6 +123,26 @@ impl SignalEngine {
         for (node_index, record) in graph.nodes().iter().enumerate() {
             let descriptor = graph.schema(record.id).map_err(|e| e.to_string())?;
             self.capabilities.insert(record.id, descriptor.capabilities);
+            if descriptor.capabilities.transport.is_some() {
+                self.input.media.entry(record.id).or_default();
+            }
+            for (p, input) in descriptor.inputs.iter().enumerate() {
+                if input.signal == SignalType::Scalar {
+                    self.inputs.insert(
+                        (record.id, p),
+                        ValueRef {
+                            source: bindings
+                                .source(node_index, p)
+                                .and_then(|key| slots[bindings.output(key)]),
+                            value: 0.0,
+                            min: -1e6,
+                            max: 1e6,
+                            wrap: None,
+                        },
+                    );
+                }
+            }
+
             for (index, parameter) in descriptor.parameters.iter().enumerate() {
                 let source = bindings
                     .source(node_index, descriptor.inputs.len() + index)
@@ -136,7 +162,9 @@ impl SignalEngine {
         for index in graph.topological_order().map_err(|e| e.to_string())? {
             let record = &graph.nodes()[index];
             let node = factory.get(&record.type_id)?;
-            let Some(kernel) = node.scalar() else {
+            let feedback = node.feedback();
+            let is_feedback = feedback.is_some();
+            let Some(kernel) = feedback.or_else(|| node.scalar()) else {
                 continue;
             };
             let descriptor = graph.schema(record.id).map_err(|e| e.to_string())?;
@@ -157,6 +185,7 @@ impl SignalEngine {
             self.output_scratch
                 .resize(self.output_scratch.len().max(descriptor.outputs.len()), 0.0);
             self.steps.push(SignalStep {
+                feedback: is_feedback,
                 node: record.id,
                 type_id: record.type_id.to_string(),
                 settings: record.settings.clone(),
@@ -183,7 +212,28 @@ impl SignalEngine {
                 tap: kernel.tap,
             });
         }
+        self.steps.sort_by_key(|step| !step.feedback);
         Ok(())
+    }
+    pub fn set_media_feedback(&mut self, node: NodeId, state: vjay_domain::transport::MediaState) {
+        if let Some(value) = self.input.media.get_mut(&node) {
+            *value = state;
+        }
+    }
+    pub fn input(&self, node: NodeId, port: usize) -> Option<ValueRef> {
+        self.inputs.get(&(node, port)).copied()
+    }
+    pub fn alias(&mut self, alias: (NodeId, usize), source: (NodeId, usize)) {
+        if let Some(slot) = self.outputs.get(&source).copied() {
+            self.outputs.insert(alias, slot);
+        }
+        self.aliases.push((alias, source));
+    }
+    fn source_alias(&self, node: NodeId, port: usize) -> (NodeId, usize) {
+        self.aliases
+            .iter()
+            .find(|(a, _)| *a == (node, port))
+            .map_or((node, port), |(_, s)| *s)
     }
     pub fn capabilities(&self, node: NodeId) -> Option<vjay_domain::capabilities::Capabilities> {
         self.capabilities.get(&node).copied()
@@ -253,9 +303,11 @@ impl SignalEngine {
         node: NodeId,
         p: usize,
     ) -> Option<&vjay_domain::execution::FileValue> {
+        let (node, p) = self.source_alias(node, p);
         self.files.output(node, p)
     }
     pub fn text_output(&self, node: NodeId, port: usize) -> Option<&str> {
+        let (node, port) = self.source_alias(node, port);
         self.text.output(node, port)
     }
     pub fn output(&self, node: NodeId, port: usize) -> Option<f32> {

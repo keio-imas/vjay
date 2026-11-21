@@ -68,6 +68,9 @@ pub struct FileContext<'a> {
 }
 pub type FileEvaluate = fn(&FileContext<'_>, &mut [Option<FileValue>]);
 pub trait SignalInputs {
+    fn media(&self, _: NodeId) -> crate::transport::MediaState {
+        Default::default()
+    }
     fn node_file(&self, _node: NodeId, _output: usize) -> Option<FileValue> {
         None
     }

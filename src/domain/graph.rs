@@ -65,6 +65,9 @@ pub struct Graph {
 }
 
 impl Graph {
+    pub fn reserve_ids_until(&mut self, next: u64) {
+        self.next_id = self.next_id.max(next);
+    }
     pub fn clear_asset(&mut self, id: NodeId) -> Result<(), GraphError> {
         let index = self.index(id)?;
         self.nodes[index].asset = None;

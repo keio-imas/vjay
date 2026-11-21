@@ -242,10 +242,10 @@ fn explicit_wire_insertion_is_atomic_and_preserves_the_original_output_port() {
 }
 
 #[test]
-fn invalid_optional_audio_route_does_not_interrupt_program_rendering() {
+fn unavailable_optional_audio_does_not_interrupt_program_rendering() {
     let (mut session, counts, _) = fixture(Project::demo(&builtin_registry()).unwrap().document());
     let video = session
-        .add_node(ids::VIDEO, Point { x: 0.0, y: 0.0 })
+        .import_video("/fixtures/clip.mov".into(), None)
         .unwrap();
     let out = session
         .add_node(ids::AUDIO_OUT, Point { x: 0.0, y: 0.0 })
@@ -272,3 +272,8 @@ mod workflow;
 
 mod deck;
 mod preferences;
+
+mod anime_club;
+mod readout;
+mod subpatch;
+mod transport;

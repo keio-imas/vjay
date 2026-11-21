@@ -12,12 +12,11 @@ impl Editor {
         let label = playhead.map_or_else(
             || "Load a clip to seek".into(),
             |p| {
+                let format = vjay_application::value_display::ValueFormat::Timecode;
                 format!(
-                    "{:02}:{:06.3} / {:02}:{:06.3}",
-                    p.seconds as u64 / 60,
-                    p.seconds % 60.0,
-                    p.duration as u64 / 60,
-                    p.duration % 60.0
+                    "{} / {}",
+                    format.format(p.seconds, 3),
+                    format.format(p.duration, 3)
                 )
             },
         );
@@ -32,6 +31,7 @@ impl Editor {
                     .gap_1()
                     .child(
                         button("deck-play", if rate > 0.0 { "Pause" } else { "Play" })
+                            .debug_selector(|| "deck-play".into())
                             .bg(rgb(ELEVATED))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 let r = this.session_mut().toggle_clip_playback(video);

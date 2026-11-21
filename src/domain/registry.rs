@@ -30,7 +30,25 @@ impl NodeRegistry {
         if self.descriptors.iter().any(|d| d.type_id == id) {
             return Err(NodeError::Duplicate(id.into()));
         }
-        if !valid_capabilities(descriptor)
+        let schema = node.schema(&node.default_settings());
+        let transport_valid = descriptor.capabilities.transport.is_none_or(|t| {
+            descriptor.capabilities.media.is_some()
+                && node.feedback().is_some()
+                && t.inputs.iter().all(|&i| {
+                    schema
+                        .inputs
+                        .get(i)
+                        .is_some_and(|p| p.signal == crate::port::SignalType::Scalar)
+                })
+                && t.outputs.iter().all(|&i| {
+                    schema
+                        .outputs
+                        .get(i)
+                        .is_some_and(|p| p.signal == crate::port::SignalType::Scalar && p.delayed)
+                })
+        });
+        if !transport_valid
+            || !valid_capabilities(descriptor)
             || id.is_empty()
             || id.len() > 128
             || !id.is_ascii()
@@ -86,6 +104,39 @@ fn valid_capabilities(d: &NodeDescriptor) -> bool {
         })
         && c.range_parameters
             .is_none_or(|[a, b]| parameter(a) && parameter(b))
+        && c.value_control.is_none_or(|v| {
+            parameter(v.parameter)
+                && d.inputs
+                    .get(v.feedback_input)
+                    .is_some_and(|p| p.signal == SignalType::Scalar)
+                && [v.request_output, v.display_output]
+                    .into_iter()
+                    .chain(v.request_trigger_output)
+                    .all(|i| {
+                        d.outputs
+                            .get(i)
+                            .is_some_and(|p| p.signal == SignalType::Scalar)
+                    })
+                && v.readout.is_none_or(|r| {
+                    r.inputs.iter().all(|&i| {
+                        d.inputs
+                            .get(i)
+                            .is_some_and(|p| p.signal == SignalType::Scalar)
+                    }) && r.outputs.iter().all(|&i| {
+                        d.outputs
+                            .get(i)
+                            .is_some_and(|p| p.signal == SignalType::Scalar)
+                    })
+                })
+        })
+        && c.rate.is_none_or(|r| {
+            [r.mode, r.rate, r.range, r.clip_bpm, r.dj_bpm, r.trim]
+                .into_iter()
+                .all(parameter)
+                && d.outputs
+                    .get(r.speed_output)
+                    .is_some_and(|p| p.signal == SignalType::Scalar)
+        })
         && c.tempo_sync.is_none_or(|b| {
             let manual_valid = b.manual.is_none_or(|m| {
                 [m.mode, m.rate, m.range, m.marker]

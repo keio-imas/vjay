@@ -77,7 +77,7 @@ impl Editor {
                     .bg(rgb(SURFACE))
                     .border_b_1()
                     .border_color(rgb(BORDER))
-                    .child(div().font_weight(FontWeight::MEDIUM).child("Patch"))
+                    .child(self.patch_breadcrumbs(cx))
                     .child(div().text_xs().text_color(rgb(MUTED)).child(
                         if self.selection.len() > 0 {
                             format!("{} selected", self.selection.len())

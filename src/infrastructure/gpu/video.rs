@@ -43,7 +43,9 @@ impl VideoInputs {
             .steps
             .iter()
             .enumerate()
-            .filter(|(_, n)| n.operation.media.is_some())
+            // An unselected media source samples the shared empty texture. Its
+            // Ready output stays zero, allowing a patch to select a placeholder.
+            .filter(|(_, n)| n.operation.media.is_some() && n.asset.is_some())
             .collect::<Vec<_>>();
         order.sort_by_key(|(_, n)| !n.program_required);
         for (step, node) in order {

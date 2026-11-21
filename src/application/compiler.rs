@@ -17,6 +17,7 @@ pub struct MediaPlayback {
 #[derive(Clone, Debug)]
 pub struct RenderStep {
     pub preview: Option<usize>,
+    pub extra_previews: Vec<usize>,
     pub program_required: bool,
     pub node: NodeId,
     pub output: usize,
@@ -161,9 +162,8 @@ fn compile_plan(
             {
                 continue;
             }
-            if (descriptor.capabilities.media.is_some()
-                || (descriptor.capabilities.still_image
-                    && descriptor.capabilities.file_input.is_none()))
+            if descriptor.capabilities.still_image
+                && descriptor.capabilities.file_input.is_none()
                 && record.asset.is_none()
             {
                 return Err(format!("Video #{}: choose a video file", record.id.0));
@@ -205,6 +205,7 @@ fn compile_plan(
             kernels::validate(&operation, descriptor.parameters.len())?;
             steps.push(RenderStep {
                 preview,
+                extra_previews: Vec::new(),
                 program_required: program_live[bindings.output(OutputRef {
                     node: index,
                     port: output,

@@ -1,4 +1,5 @@
 use super::*;
+use vjay_domain::graph::{Graph, GraphError};
 
 impl Session {
     pub fn add_node(
@@ -8,11 +9,42 @@ impl Session {
     ) -> PortResult<NodeId> {
         let type_id = type_id.into();
         let capabilities = self.nodes.get(&type_id)?.descriptor().capabilities;
+        self.project.graph.reserve_ids_until(self.next_node_id);
+        let composite = self.nodes.get(&type_id)?.composite();
+        let boundary = self
+            .nodes
+            .get(&type_id)?
+            .boundary(&self.nodes.get(&type_id)?.default_settings())
+            .is_some();
         let id = self
             .project
             .graph
             .add(type_id, self.nodes.as_ref())
             .map_err(|e| e.to_string())?;
+        self.next_node_id = id.0.checked_add(1).ok_or("Node IDs exhausted")?;
+        if composite {
+            self.project.subpatches.push(Subpatch {
+                node: id,
+                source: None,
+                project: Box::new(Project::blank()),
+            });
+        }
+        if boundary {
+            let mut settings = self
+                .project
+                .graph
+                .node(id)
+                .map_err(|e| e.to_string())?
+                .settings
+                .clone();
+            settings
+                .properties
+                .insert("port.key".into(), format!("port-{}", id.0));
+            self.project
+                .graph
+                .set_settings(id, settings, self.nodes.as_ref())
+                .map_err(|e| e.to_string())?;
+        }
         self.project
             .positions
             .push(NodePosition { node: id, position });
@@ -47,6 +79,7 @@ impl Session {
             self.project.output = None;
         }
         self.project.positions.retain(|p| !ids.contains(&p.node));
+        self.project.subpatches.retain(|p| !ids.contains(&p.node));
         self.project.controls.retain(|p| !ids.contains(&p.node));
         self.sync_taps.retain(|node, _| !ids.contains(node));
         let assets: std::collections::HashSet<_> = self
@@ -76,10 +109,26 @@ impl Session {
         }
     }
     pub fn connect(&mut self, connection: Connection) -> PortResult<()> {
-        self.project
-            .graph
-            .connect(connection)
-            .map_err(|e| e.to_string())?;
+        self.edit_connections(|graph| graph.connect(connection))
+    }
+    fn edit_connections(
+        &mut self,
+        edit: impl FnOnce(&mut Graph) -> Result<(), GraphError>,
+    ) -> PortResult<()> {
+        if self.ancestors.is_empty() && self.project.subpatches.is_empty() {
+            edit(&mut self.project.graph).map_err(|e| e.to_string())?;
+        } else {
+            let mut candidate = self.project.graph.clone();
+            edit(&mut candidate).map_err(|e| e.to_string())?;
+            let previous = std::mem::replace(&mut self.project.graph, candidate);
+            if let Err(e) = self
+                .root_snapshot()
+                .and_then(|root| crate::composition::expand(&root, self.nodes.as_ref()))
+            {
+                self.project.graph = previous;
+                return Err(e);
+            }
+        }
         self.invalidate(true);
         Ok(())
     }
@@ -88,12 +137,7 @@ impl Session {
         self.invalidate(true);
     }
     pub fn reconnect(&mut self, previous: Connection, next: Connection) -> PortResult<()> {
-        self.project
-            .graph
-            .reconnect(previous, next)
-            .map_err(|e| e.to_string())?;
-        self.invalidate(true);
-        Ok(())
+        self.edit_connections(|graph| graph.reconnect(previous, next))
     }
     pub fn set_workspace(&mut self, layout: crate::workspace::WorkspaceLayout) -> PortResult<()> {
         if !layout.is_valid() {
@@ -105,10 +149,10 @@ impl Session {
     }
     pub fn set_parameter(&mut self, node: NodeId, parameter: usize, value: f32) -> PortResult<()> {
         let trigger = self.project.graph.node(node).is_ok_and(|record| {
-            self.descriptor(&record.type_id)
-                .capabilities
-                .momentary_parameter
-                == Some(parameter)
+            let caps = self.descriptor(&record.type_id).capabilities;
+            caps.value_control.is_some_and(|binding| {
+                binding.parameter == parameter && binding.request_trigger_output.is_some()
+            }) || caps.momentary_parameter == Some(parameter)
                 && value > 0.0
                 && record.parameters[parameter] <= 0.0
         });
@@ -174,6 +218,7 @@ impl Session {
                 y: 12.0 + (id % 6) as f32 * 108.0,
             },
             size: Point { x: 240.0, y: 100.0 },
+            display: Default::default(),
             ..Default::default()
         });
         Ok(())

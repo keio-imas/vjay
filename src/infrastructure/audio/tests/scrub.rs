@@ -86,7 +86,7 @@ fn lfo_position_at_60hz_does_not_starve_audio_when_decoder_startup_is_slower_tha
             from: lfo,
             output: 2,
             to: video,
-            input: 1,
+            input: 9,
         },
     ] {
         graph.connect(edge).unwrap();

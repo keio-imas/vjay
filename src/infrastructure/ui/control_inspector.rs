@@ -86,6 +86,17 @@ impl Editor {
         }
         .unwrap_or("Unavailable");
         panel
+            .when(
+                matches!(
+                    control.widget,
+                    WidgetKind::Slider
+                        | WidgetKind::Meter
+                        | WidgetKind::Number
+                        | WidgetKind::Knob
+                        | WidgetKind::Label
+                ),
+                |panel| panel.child(self.control_display_settings(control, cx)),
+            )
             .child(
                 div()
                     .id("current-control-binding")

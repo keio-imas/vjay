@@ -68,6 +68,16 @@ impl Editor {
             && (event.keystroke.modifiers.platform || event.keystroke.modifiers.control)
         {
             match event.keystroke.key.as_str() {
+                "e" if event.keystroke.modifiers.shift => {
+                    self.encapsulate_selection(cx);
+                    cx.stop_propagation();
+                    return;
+                }
+                "[" => {
+                    self.back_subpatch(cx);
+                    cx.stop_propagation();
+                    return;
+                }
                 "c" => {
                     self.copy_patch(cx);
                     cx.stop_propagation();

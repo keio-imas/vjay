@@ -11,6 +11,7 @@ static VIDEO: NodeDescriptor = NodeDescriptor {
     type_id: ids::VIDEO,
     category: "Sources",
     capabilities: Capabilities {
+        transport: Some(crate::transport::TransportBinding::at(0)),
         media: Some(MediaBinding {
             speed: 0,
             position: 1,
@@ -28,7 +29,7 @@ static VIDEO: NodeDescriptor = NodeDescriptor {
     outputs: &[Port::texture("Video"), Port::audio("Audio")],
     parameters: &[
         P::new("Speed", 0.0, 8.0, 1.0),
-        P::new("Position", 0.0, 1.0, 0.0),
+        P::new("Seek position", 0.0, 1.0, 0.0),
         P::new("Loop", 0.0, 1.0, 1.0).choices(crate::choices::SWITCH),
         P::new("Range start", 0.0, 1.0, 0.0),
         P::new("Range end", 0.0, 1.0, 1.0),
@@ -64,8 +65,21 @@ pub(crate) fn register(registry: &mut NodeRegistry) {
 
 struct VideoNode;
 impl Node for VideoNode {
+    fn feedback(&self) -> Option<crate::execution::ScalarKernel> {
+        Some(crate::transport::feedback())
+    }
+    fn port_version(&self) -> u32 {
+        1
+    }
+    fn migrate_input_port(&self, input: usize, from: u32) -> usize {
+        input + if from == 0 { 8 } else { 0 }
+    }
+
     fn descriptor(&self) -> &'static NodeDescriptor {
         &VIDEO
+    }
+    fn schema(&self, _: &NodeSettings) -> crate::schema::NodeSchema {
+        crate::transport::schema(&VIDEO)
     }
     fn image(&self, values: &[f32], settings: &NodeSettings, output: usize) -> Option<ImageKernel> {
         ImageNode {

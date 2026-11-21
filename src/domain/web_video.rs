@@ -16,6 +16,7 @@ static D: NodeDescriptor = NodeDescriptor {
     inputs: &[],
     outputs: &[Port::texture("Video"), Port::audio("Audio")],
     capabilities: Capabilities {
+        transport: Some(crate::transport::TransportBinding::at(0)),
         media: Some(MediaBinding {
             speed: 0,
             position: 1,
@@ -30,7 +31,7 @@ static D: NodeDescriptor = NodeDescriptor {
     },
     parameters: &[
         P::new("Speed", 0.0, 8.0, 1.0),
-        P::new("Position", 0.0, 1.0, 0.0),
+        P::new("Seek position", 0.0, 1.0, 0.0),
         P::new("Loop", 0.0, 1.0, 1.0).choices(crate::choices::SWITCH),
         P::new("Range start", 0.0, 1.0, 0.0),
         P::new("Range end", 0.0, 1.0, 1.0),
@@ -38,6 +39,16 @@ static D: NodeDescriptor = NodeDescriptor {
     ],
 };
 impl Node for WebVideo {
+    fn feedback(&self) -> Option<crate::execution::ScalarKernel> {
+        Some(crate::transport::feedback())
+    }
+    fn port_version(&self) -> u32 {
+        1
+    }
+    fn migrate_input_port(&self, input: usize, from: u32) -> usize {
+        input + if from == 0 { 8 } else { 0 }
+    }
+
     fn descriptor(&self) -> &'static NodeDescriptor {
         &D
     }
@@ -53,7 +64,7 @@ impl Node for WebVideo {
         s
     }
     fn schema(&self, _: &NodeSettings) -> NodeSchema {
-        let mut s = NodeSchema::new(&D);
+        let mut s = crate::transport::schema(&D);
         s.properties = [
             ("url", "Video URL"),
             ("max_height", "Maximum height (360–2160)"),

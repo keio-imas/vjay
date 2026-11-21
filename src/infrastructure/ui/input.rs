@@ -23,6 +23,7 @@ impl Editor {
             return;
         }
         match self.drag {
+            Some(Drag::MediaNudge(_)) => {}
             Some(Drag::MediaSeek(node, left, width)) => {
                 let r = self
                     .session_mut()

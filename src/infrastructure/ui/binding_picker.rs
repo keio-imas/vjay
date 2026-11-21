@@ -50,6 +50,7 @@ impl Editor {
                 binding.parameter = parameter;
                 binding.target = target;
                 binding.range = None;
+                binding.display = Default::default();
                 if target == ControlTarget::Output {
                     binding.widget = if schema.outputs[parameter].signal == SignalType::Text {
                         WidgetKind::Label

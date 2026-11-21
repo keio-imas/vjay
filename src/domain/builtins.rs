@@ -7,6 +7,9 @@ pub(crate) mod scalar;
 
 pub fn registry() -> NodeRegistry {
     let mut registry = NodeRegistry::default();
+    crate::composition::register(&mut registry);
+    crate::seek_control::register(&mut registry);
+    crate::deck_rate::register(&mut registry);
     crate::media_device::register(&mut registry);
     images::register(&mut registry);
     crate::sources::register(&mut registry);

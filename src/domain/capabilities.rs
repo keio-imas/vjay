@@ -88,7 +88,34 @@ pub struct TempoSyncBinding {
     pub outputs: [usize; 3],
 }
 #[derive(Clone, Copy, Debug)]
+pub struct RateBinding {
+    pub mode: usize,
+    pub rate: usize,
+    pub range: usize,
+    pub clip_bpm: usize,
+    pub dj_bpm: usize,
+    pub trim: usize,
+    pub speed_output: usize,
+}
+#[derive(Clone, Copy, Debug)]
+pub struct ValueControlBinding {
+    pub parameter: usize,
+    pub feedback_input: usize,
+    pub request_output: usize,
+    pub display_output: usize,
+    pub request_trigger_output: Option<usize>,
+    pub readout: Option<ValueReadoutBinding>,
+}
+#[derive(Clone, Copy, Debug)]
+pub struct ValueReadoutBinding {
+    pub inputs: [usize; 2],
+    pub outputs: [usize; 2],
+}
+#[derive(Clone, Copy, Debug)]
 pub struct Capabilities {
+    pub rate: Option<RateBinding>,
+    pub value_control: Option<ValueControlBinding>,
+    pub transport: Option<crate::transport::TransportBinding>,
     pub asset_selection_parameter: Option<usize>,
     pub tempo_sync: Option<TempoSyncBinding>,
     pub audio_cue: bool,
@@ -106,6 +133,9 @@ pub struct Capabilities {
 }
 impl Capabilities {
     pub const NONE: Self = Self {
+        rate: None,
+        value_control: None,
+        transport: None,
         asset_selection_parameter: None,
         tempo_sync: None,
         audio_cue: false,

@@ -5,7 +5,10 @@ impl Graph {
     pub fn topological_order(&self) -> Result<Vec<usize>, GraphError> {
         let mut indegrees = vec![0; self.nodes.len()];
         for ports in &self.ports {
-            for output in &ports.outputs {
+            for (index, output) in ports.outputs.iter().enumerate() {
+                if ports.schema.outputs[index].delayed {
+                    continue;
+                }
                 for input in &output.destinations {
                     indegrees[self.index(input.node)?] += 1;
                 }
@@ -17,7 +20,10 @@ impl Graph {
         let mut order = Vec::with_capacity(self.nodes.len());
         while let Some(index) = ready.pop_front() {
             order.push(index);
-            for output in &self.ports[index].outputs {
+            for (port, output) in self.ports[index].outputs.iter().enumerate() {
+                if self.ports[index].schema.outputs[port].delayed {
+                    continue;
+                }
                 for input in &output.destinations {
                     let next = self.index(input.node)?;
                     indegrees[next] -= 1;

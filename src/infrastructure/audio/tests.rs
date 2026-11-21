@@ -159,6 +159,41 @@ fn native_audio_decodes_modulates_pauses_and_releases_device_only_when_connected
     };
     assert!(backend.configure(&invalid).is_err());
     assert!(backend.stream.is_some());
+    timeline
+        .command(video, vjay_domain::transport::TransportAction::Pause)
+        .unwrap();
+    timeline.resolve_seeks(|_| Some(backend.sources[0].worker.duration));
+    plan.update(&signals, &timeline);
+    backend.update(&plan, false).unwrap();
+    assert_eq!(
+        f32::from_bits(
+            backend.sources[0]
+                .worker
+                .shared
+                .rate
+                .load(Ordering::Acquire)
+        ),
+        0.0
+    );
+    timeline
+        .command(video, vjay_domain::transport::TransportAction::Play)
+        .unwrap();
+    timeline.resolve_seeks(|_| Some(backend.sources[0].worker.duration));
+    timeline.nudge(video, 1.0).unwrap();
+    plan.update(&signals, &timeline);
+    backend.update(&plan, false).unwrap();
+    assert!(
+        (f32::from_bits(
+            backend.sources[0]
+                .worker
+                .shared
+                .rate
+                .load(Ordering::Acquire)
+        ) - 1.02)
+            .abs()
+            < 1e-6
+    );
+    timeline.nudge(video, 0.0).unwrap();
     // Exercise the real CPAL callback under the same 60 Hz Position modulation.
     // Volume stays zero: this validates the device path without emitting sound.
     let lfo = graph.add(ids::LFO, &f).unwrap();
@@ -167,7 +202,7 @@ fn native_audio_decodes_modulates_pauses_and_releases_device_only_when_connected
             from: lfo,
             output: 2,
             to: video,
-            input: 1,
+            input: 9,
         })
         .unwrap();
     signals.rebuild(&graph, &f).unwrap();

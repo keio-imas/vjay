@@ -52,6 +52,9 @@ impl AudioPlan {
                     .ok_or("Node has no audio routing recipe")?
                 {
                     AudioRecipe::Source => {
+                        let Some(asset) = node.asset else {
+                            continue;
+                        };
                         if result.routes.len() >= 64 {
                             return Err("Audio route limit exceeded".into());
                         }
@@ -60,7 +63,7 @@ impl AudioPlan {
                             .ok_or("Audio source needs a media binding")?;
                         result.routes.push(AudioRoute {
                             node: id,
-                            asset: node.asset.ok_or("Choose a media file for audio")?,
+                            asset,
                             gain: 0.0,
                             speed: 1.0,
                             position: 0.0,
@@ -109,7 +112,9 @@ impl AudioPlan {
                 .iter()
                 .map(|gain| gain.read(&signals.values))
                 .product();
-            route.speed = route.rate.read(&signals.values);
+            route.speed = timeline
+                .speed(route.node)
+                .unwrap_or_else(|| route.rate.read(&signals.values));
             route.position = route.seek.read(&signals.values);
             route.seconds = timeline.base(route.node);
             route.window = timeline.window(route.node);

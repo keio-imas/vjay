@@ -93,7 +93,7 @@ fn folder_video_switches_on_click_index_and_signal_using_hardware_decoding() {
             from: value,
             output: 0,
             to: video,
-            input: 7,
+            input: 15,
         })
         .unwrap();
     session.render_at(0.08).unwrap();

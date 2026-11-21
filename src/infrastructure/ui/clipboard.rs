@@ -59,8 +59,8 @@ impl Editor {
                 .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
                 .absolute()
                 .left(px(menu.screen.x.min(width - 180.0).max(0.0)))
-                .top(px(menu.screen.y.min(height - 210.0).max(0.0)))
-                .w(px(175.0))
+                .top(px(menu.screen.y.min(height - 300.0).max(0.0)))
+                .w(px(225.0))
                 .p_1()
                 .flex()
                 .flex_col()
@@ -99,6 +99,18 @@ impl Editor {
                         }
                     },
                 )))
+                .child(
+                    button("encapsulate-nodes", "Create subpatch   ⇧⌘/Ctrl+E")
+                        .debug_selector(|| "encapsulate-nodes".into())
+                        .text_xs()
+                        .on_click(cx.listener(|this, _, _, cx| this.encapsulate_selection(cx))),
+                )
+                .child(
+                    button("load-subpatch", "Load subpatch…")
+                        .debug_selector(|| "load-subpatch".into())
+                        .text_xs()
+                        .on_click(cx.listener(|this, _, _, cx| this.choose_subpatch_file(cx))),
+                )
                 .child(
                     button("delete-nodes", "Delete").on_click(cx.listener(|this, _, _, cx| {
                         this.delete_selection(cx);

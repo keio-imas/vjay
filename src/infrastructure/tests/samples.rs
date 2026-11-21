@@ -25,9 +25,23 @@ fn samples() -> Vec<PathBuf> {
             .collect();
     files.sort();
     assert_eq!(
-        files.len(),
+        files
+            .iter()
+            .filter(|p| p
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_digit()))
+            .count(),
         10,
         "Keep the ten shipped sample projects loadable"
+    );
+    assert!(
+        files
+            .iter()
+            .any(|p| p.file_name().unwrap() == "anime-club.vjay.json")
     );
     files
 }
@@ -56,6 +70,9 @@ fn samples_restore_compile_and_expose_editable_controls_without_external_assets(
             assert!(definition.service().is_none());
         }
         for control in &project.controls {
+            if control.target == vjay_application::project::ControlTarget::Output {
+                continue;
+            }
             assert!(
                 signals
                     .parameter(control.node, control.parameter)

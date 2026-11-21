@@ -50,7 +50,7 @@ fn sparse_ids_resolve_to_dense_slots_and_input_indices_cannot_bleed_into_the_nex
             node: graph.index(last).unwrap(),
             port: 0
         }),
-        6
+        12
     );
 }
 

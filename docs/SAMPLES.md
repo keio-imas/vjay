@@ -1,8 +1,8 @@
 # Sample projects
 
-Ten self-contained projects are stored in [`sample/`](../sample/). Each has six assigned
-Control Panel items and produces no audio. They require no external videos, images, or
-sharing SDKs. Previews below are actual 640×360 GPU captures.
+[`sample/`](../sample/) contains ten procedural demos and an anime-club two-deck template.
+The numbered demos each have six Control Panel items, produce no audio, and require no
+external media or sharing SDKs. Previews below are actual 640×360 GPU captures.
 
 ## Open a project
 
@@ -45,6 +45,38 @@ Open `10-dual-projector.vjay.json`:
 Program shows A. The independent B window displays this feed:
 
 <img src="images/samples/10-dual-projector-b.png" width="480" alt="Projector B tunnel">
+
+## Anime-club two-deck template
+
+Open [anime-club.vjay.json](../sample/anime-club.vjay.json), or run:
+
+```sh
+target/release/vjay --project sample/anime-club.vjay.json --output-window
+```
+
+The template contains no copyrighted media, local media paths, or external service
+connections. Each empty deck shows an animated Pattern until its video is ready.
+
+1. In Settings, choose the headphone audio output. The DJ's floor audio remains the
+   reference; this project routes video audio only to Cue / Headphones.
+2. Use **A / Load folder or playlist** and **B / Load folder or playlist** in Control Panel
+   to choose your own video files, folders or `.m3u` / `.m3u8` playlists.
+3. Each deck has a Seek slider displaying `hh:mm:ss.fff / hh:mm:ss.fff`, Rate %, Listen,
+   Loop, Play/Pause, Set cue, Cue, held Nudge −/+, and Jog −/+10 ms controls.
+4. Enable **Listen A** or **Listen B** to hear that deck in headphones. Both start off.
+   Adjust Rate % to remove drift, Nudge to correct phase, and Jog for small position steps.
+   You do not need to know the floor track's BPM. Rate changes also change audio pitch.
+5. Crossfade moves the Program image between A at 0 and B at 1. Blackout affects Program
+   only; headphone selection and deck transports stay independent. Q toggles A playback;
+   W toggles B playback when text inputs are unfocused.
+
+Control Panel scrolls vertically to reveal lower rows. Perform view gives the controls more
+space. Both decks are ordinary Files → Loadable Video, Deck Rate, Seek Control and control
+nodes. Their patch wiring is editable, and Keyboard/MIDI/OSC nodes can replace or extend
+the transport buttons. Empty decks do not disable the other deck's headphone route.
+
+See [readout settings](PATCHING_AND_TRANSPORT.md#choose-numeric-or-time-display) to switch
+between numeric and time display or apply timecode to other controls.
 
 ## Replace sources or processing
 

@@ -18,6 +18,9 @@ impl Editor {
             );
         }
         let capabilities = descriptor.capabilities;
+        if self.session().is_subpatch(id) {
+            panel = panel.child(self.subpatch_inspector(id, cx));
+        }
         if let Some(status) = self.session().asset_source_status(id) {
             panel = panel
                 .child(section("Media source"))
@@ -82,6 +85,9 @@ impl Editor {
                     },
                 )),
             );
+        }
+        if capabilities.rate.is_some() || capabilities.tempo_sync.is_some() {
+            panel = panel.child(self.rate_controller_panel(id, cx));
         }
         if capabilities.media.is_some() {
             panel = panel.child(self.video_sync_panel(id, cx));
@@ -172,6 +178,9 @@ impl Editor {
             .iter()
             .filter(|(key, _)| !descriptor.properties.iter().any(|p| p.key == **key));
         for (key, value) in declared.chain(extra) {
+            if key == "port.key" {
+                continue;
+            }
             if let Some(provider) = descriptor
                 .properties
                 .iter()

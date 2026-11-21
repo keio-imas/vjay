@@ -62,7 +62,7 @@ fn lip_sync_sets_tempo_nudge_and_phase_and_seeks_again_at_an_unchanged_position(
     wire(&mut g, button, 1, sync, 1);
     wire(&mut g, forward, 0, sync, 3);
     for (output, input) in [(0, 0), (1, 1), (2, 5)] {
-        wire(&mut g, sync, output, video, input);
+        wire(&mut g, sync, output, video, input + 8);
     }
     let mut s = SignalEngine::default();
     s.rebuild(&g, &f).unwrap();

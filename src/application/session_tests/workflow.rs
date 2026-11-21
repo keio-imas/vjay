@@ -106,15 +106,14 @@ fn bpm_sync_setup_is_explicit_idempotent_and_monitoring_is_optional() {
     let before = s.project().graph.connection_count();
     assert!(!s.monitored_video(video));
     let sync = s.setup_video_sync(video).unwrap();
-    assert_eq!(s.project().graph.connection_count(), before + 3);
+    assert_eq!(s.project().graph.connection_count(), before + 1);
     assert_eq!(s.setup_video_sync(video).unwrap(), sync);
-    let binding = s.schema(sync).capabilities.tempo_sync.unwrap();
-    s.set_parameter(sync, binding.manual.unwrap().mode, 1.0)
-        .unwrap();
+    let binding = s.schema(sync).capabilities.rate.unwrap();
+    s.set_parameter(sync, binding.mode, 1.0).unwrap();
     s.set_parameter(sync, binding.clip_bpm, 100.0).unwrap();
     s.set_parameter(sync, binding.dj_bpm, 120.0).unwrap();
     s.render_at(0.0).unwrap();
-    assert!((s.signal_value(sync, binding.outputs[0]).unwrap() - 1.2).abs() < 1e-6);
+    assert!((s.signal_value(sync, binding.speed_output).unwrap() - 1.2).abs() < 1e-6);
     s.monitor_video(video, true).unwrap();
     assert!(s.monitored_video(video));
     s.monitor_video(video, false).unwrap();
@@ -125,7 +124,7 @@ fn bpm_sync_setup_is_explicit_idempotent_and_monitoring_is_optional() {
         from: value,
         output: 0,
         to: other,
-        input: 0,
+        input: s.schema(other).inputs.len(),
     })
     .unwrap();
     let nodes = s.project().graph.nodes().len();

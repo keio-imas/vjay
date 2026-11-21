@@ -292,10 +292,62 @@ read pixels on the CPU; only the native frame wrapper changes each frame. Unsupp
 platforms report adapter unavailability. Device discovery runs when the picker opens,
 rather than during steady rendering. Capture starts asynchronously and is opt-in.
 
-Deck Sync is an open-registry node implementing `Node`, with capability metadata describing
-manual mode, rate, pitch range, cue marker, and the existing Speed / Position / Seek ports.
-The application edits those declared bindings without depending on its concrete type.
-By-ear mode does not depend on BPM. Nudge changes rate temporarily; the shared media timeline
-retains the accumulated phase on release. Relative jog starts at the actual playhead and
-uses an explicit seek pulse, including when returning to an unchanged cue. Optional monitor
-audio follows the same transport. Parameter migration retains the BPM mode of old projects.
+The current media ownership and composition contracts are described below.
+
+## Media commands, feedback, and value controls
+
+The domain declares media command bindings and read-only playback snapshots. Application
+`MediaTimeline` owns each source's playhead, range, local Pause state, Nudge and Cue marker.
+The same state supplies GPU frame selection, audio rate/position, Inspector transport, and
+Playhead feedback outputs. GUI actions and graph inputs become the same transport actions;
+video transport never discovers or rewrites a connected controller's internals.
+
+Deck Rate implements `Node` and lowers to a scalar rate kernel. Its capability metadata
+describes parameter and output indices; application/UI code uses those bindings without
+matching a concrete node ID. Seek Control's declared value-control contract independently
+identifies its request parameter, feedback input, request output, optional request-trigger
+output and display output. Parameter edits notify the control node, which emits a graph
+pulse to distinguish repeating a request from observing an unchanged value.
+A slider can therefore display observed playback while preserving the user's last command.
+New control implementations can provide the same contract with different port layouts.
+
+Control readouts are independent of interaction values. The application stores a numeric
+format plus optional scalar readout/total output indices on each Control Panel binding.
+GPUI uses that presentation contract for sliders, meters, knobs, numbers and numeric labels.
+Timecode formatting consumes seconds without rewriting graph values or control ranges.
+Seek Control accepts generic readout values through ordinary ports; the explicit media
+setup connects elapsed seconds and duration. No formatter looks up a concrete video node,
+and readout bindings stay local to their bound node when copying or nesting patches.
+
+`Node::feedback` lowers snapshot producers separately from ordinary scalar kernels.
+Delayed output metadata permits feedback cycles; their snapshot kernels publish first.
+The rest of the compiled scalar schedule remains ordered. Source commands are processed
+by one source-local state machine and increment a Seek revision even when recalling an
+unchanged position, so video and audio both receive the Seek. Legacy Deck Sync definitions
+and connection migrations remain available, but new rate controllers contain no clip state.
+
+## Hierarchical editing and flat execution
+
+Domain nodes expose composition and boundary contracts through `Node`; they do not depend
+on an application document type. A generic typed interface describes container ports.
+Application documents own nested definitions, optional named-file locations, scope layouts,
+controls and assets. In / Out are ordinary registered boundary implementations. The compiler
+consumes their declared roles rather than a closed list of concrete node kinds.
+
+Application resolves port aliases into a flat graph on edits. The usual signal, texture,
+audio, file, text and service compilers operate on that graph. Container previews use
+precompiled render-step registrations, so pooled textures are presented before reuse.
+Playback does not recurse through subpatches or call the `Node` trait. Tests compare image
+pixels and pass counts before/after nesting and verify no factory calls during steady frames.
+
+Node identities are unique across the project hierarchy. Imports and copies rebase colliding
+identities before validation, including layout, bindings, asset references and nested instances.
+Boundary keys are independent of display order, names and rebased runtime IDs. Interface edits
+therefore remap compatible external wires by identity. Instantaneous cycles are rejected in
+the fully expanded graph, including cycles hidden behind container ports.
+
+The active canvas is an editing scope. Parent documents are retained while editing children;
+a prepared root snapshot supplies execution and project Save. Named patches use the existing
+project-store port. Each project embeds its instance snapshots, avoiding filesystem reads or
+surprise external updates during playback. Reload is explicit and a failed read preserves the
+existing instance. The same named file may have multiple instances with independent state.

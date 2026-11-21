@@ -14,8 +14,7 @@ impl Editor {
             .filter(|id| self.session().window_output(*id))
             .or(self
                 .session()
-                .project()
-                .output
+                .root_output()
                 .filter(|id| self.session().window_output(*id)));
         let Some(source) = source else {
             self.message = "Add an Output node first".into();

@@ -26,6 +26,9 @@ impl RuntimeFactory for Runtime {
     }
 }
 impl RenderBackend for Renderer {
+    fn media_duration(&self, _: vjay_domain::graph::NodeId) -> Option<f64> {
+        Some(10.0)
+    }
     fn prepare(&mut self, _: &RenderPlan, _: Extent) -> PortResult<()> {
         Ok(())
     }
@@ -278,3 +281,6 @@ mod studio;
 mod viewport;
 
 mod settings;
+
+mod readout;
+mod subpatch;

@@ -27,14 +27,27 @@ impl Session {
         }
         self.process_midi();
         if self.dirty {
+            let expanded = self
+                .root_snapshot()
+                .and_then(|root| crate::composition::expand(&root, self.nodes.as_ref()));
+            self.execution = match expanded {
+                Ok(graph) => graph,
+                Err(error) => {
+                    self.dirty = false;
+                    self.valid = false;
+                    self.error = Some(error.clone());
+                    self.plan = None;
+                    return Err(error);
+                }
+            };
             self.asset_sources.rebuild(
-                &self.project.graph,
+                &self.execution.graph,
                 self.nodes.as_ref(),
-                &self.project.assets,
+                &self.execution.assets,
             )?;
         }
         while let Some((node, path)) = self.asset_sources.poll(delivery) {
-            if self.project.graph.node(node).is_ok() {
+            if self.owner(node).is_some() {
                 if self.asset_sources.file_output(node) {
                     self.signals
                         .events
@@ -74,6 +87,7 @@ impl Session {
             self.error = result.err();
         }
         // Control envelopes and input pulses keep running while media transport is paused.
+        self.timeline.publish(&mut self.signals);
         self.signals.tick(control_seconds);
         self.asset_sources.tick(&self.signals);
         for (node, path, still) in self.file_media.changes(&self.signals) {
@@ -85,12 +99,12 @@ impl Session {
                 }
             } else if still
                 && self
-                    .project
-                    .graph
-                    .node(node)
-                    .is_ok_and(|n| n.asset.is_some())
+                    .owner(node)
+                    .and_then(|p| p.graph.node(node).ok())
+                    .is_some_and(|n| n.asset.is_some())
             {
-                self.project
+                self.owner_mut(node)
+                    .ok_or("Missing media owner")?
                     .graph
                     .clear_asset(node)
                     .map_err(|e| e.to_string())?;
@@ -144,44 +158,67 @@ impl Session {
         // Signal offsets belong to one compiled graph. Never retain an old
         // render plan across a signal-bank rebuild, including failed rebuilds.
         let previous = self.plan.take();
+        let root = self.root_snapshot()?;
+        self.execution = crate::composition::expand(&root, self.nodes.as_ref())?;
         self.signals
-            .rebuild(&self.project.graph, self.nodes.as_ref())?;
+            .rebuild(&self.execution.graph, self.nodes.as_ref())?;
+        for (alias, source) in &self.execution.routes {
+            self.signals.alias(*alias, *source);
+        }
         self.asset_sources.bind(&self.signals);
         self.file_media
-            .rebuild(&self.project.graph, &self.signals)?;
-        self.timeline.rebuild(&self.project.graph, &self.signals)?;
+            .rebuild(&self.execution.graph, &self.signals)?;
+        self.timeline
+            .rebuild(&self.execution.graph, &self.signals)?;
         self.services.rebuild(
-            &self.project.graph,
+            &self.execution.graph,
             self.nodes.as_ref(),
             &self.signals,
             self.control_io.as_mut(),
         )?;
-        self.audio_plan = match crate::audio::AudioPlan::compile(&self.project.graph, &self.signals)
-        {
-            Ok(plan) => {
-                self.audio_error = self.audio.prepare(&plan, &self.project.assets).err();
-                plan
+        self.audio_plan =
+            match crate::audio::AudioPlan::compile(&self.execution.graph, &self.signals) {
+                Ok(plan) => {
+                    self.audio_error = self.audio.prepare(&plan, &self.execution.assets).err();
+                    plan
+                }
+                Err(error) => {
+                    let empty = crate::audio::AudioPlan::default();
+                    let _ = self.audio.prepare(&empty, &self.execution.assets);
+                    self.audio_error = Some(error);
+                    empty
+                }
+            };
+        let mut candidate =
+            compile_with_previews(&self.execution.graph, root.output, self.nodes.as_ref())?;
+        for (node, (source, port)) in &self.execution.previews {
+            if let Some(step) = candidate
+                .steps
+                .iter()
+                .position(|s| s.node == *source && s.output == *port)
+            {
+                let index = candidate.previews.len();
+                candidate
+                    .previews
+                    .push(crate::compiler::RenderPreview { node: *node, step });
+                candidate.steps[step].extra_previews.push(index);
             }
-            Err(error) => {
-                let empty = crate::audio::AudioPlan::default();
-                let _ = self.audio.prepare(&empty, &self.project.assets);
-                self.audio_error = Some(error);
-                empty
-            }
-        };
-        let mut candidate = compile_with_previews(
-            &self.project.graph,
-            self.project.output,
-            self.nodes.as_ref(),
-        )?;
+        }
         self.signals.bind(&mut candidate);
         let resource_change = previous.as_ref().is_none_or(|old| {
             old.outputs != candidate.outputs
+                || old
+                    .previews
+                    .iter()
+                    .zip(&candidate.previews)
+                    .any(|(a, b)| a.node != b.node || a.step != b.step)
                 || old.texture_count != candidate.texture_count
                 || old.output_slot != candidate.output_slot
+                || old.previews.len() != candidate.previews.len()
                 || old.steps.len() != candidate.steps.len()
                 || old.steps.iter().zip(&candidate.steps).any(|(a, b)| {
                     a.preview != b.preview
+                        || a.extra_previews != b.extra_previews
                         || a.still_image != b.still_image
                         || a.operation.parameters.len() != b.operation.parameters.len()
                         || a.node != b.node
@@ -194,12 +231,12 @@ impl Session {
                 })
         });
         if self.prepare || resource_change {
-            self.renderer.set_assets(&self.project.assets);
+            self.renderer.set_assets(&self.execution.assets);
             self.renderer.prepare(&candidate, self.extent)?;
         }
         self.plan = Some(candidate);
         self.prepare = false;
-        self.asset_sources.retain_assets(&self.project.assets);
+        self.asset_sources.retain_assets(&self.execution.assets);
         Ok(())
     }
 }

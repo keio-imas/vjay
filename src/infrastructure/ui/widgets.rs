@@ -41,7 +41,7 @@ impl Editor {
                 .flex()
                 .flex_col()
                 .gap_2()
-                .child(format!("{value:.3}"))
+                .child(self.session().control_readout(c, 3))
                 .child(
                     div()
                         .id(id)
@@ -83,7 +83,7 @@ impl Editor {
                         }),
                 )
                 .into_any_element(),
-            WidgetKind::Number => button(id, format!("{value:.4}"))
+            WidgetKind::Number => button(id, self.session().control_readout(c, 4))
                 .debug_selector(move || format!("widget-{control_id}"))
                 .text_xl()
                 .when(editable, |element| {
@@ -105,10 +105,10 @@ impl Editor {
             WidgetKind::Label => div()
                 .text_lg()
                 .child(
-                    (c.target == ControlTarget::Output)
+                    (c.target == ControlTarget::Output && c.display.output.is_none())
                         .then(|| self.session().text_value(node, parameter))
                         .flatten()
-                        .map_or_else(|| format!("{value:.3}"), str::to_owned),
+                        .map_or_else(|| self.session().control_readout(c, 3), str::to_owned),
                 )
                 .into_any_element(),
             WidgetKind::Toggle | WidgetKind::Button => {
@@ -213,7 +213,7 @@ impl Editor {
                             .size_full(),
                         ),
                 )
-                .child(div().text_xs().child(format!("{value:.3}")))
+                .child(div().text_xs().child(self.session().control_readout(c, 3)))
                 .when(editable, |element| {
                     element.on_mouse_down(
                         MouseButton::Left,

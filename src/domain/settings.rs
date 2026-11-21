@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct NodeSettings {
+    pub transport: Option<crate::transport::Bookmark>,
+    pub interface: Option<crate::composition::Interface>,
     pub port_version: u32,
     pub preview: bool,
     pub comment: String,
@@ -20,6 +22,8 @@ pub struct NodeSettings {
 impl Default for NodeSettings {
     fn default() -> Self {
         Self {
+            transport: None,
+            interface: None,
             port_version: 0,
             preview: false,
             comment: String::new(),
@@ -38,7 +42,10 @@ pub const DEFAULT_FRAGMENT: &str = "void mainImage(out vec4 color, in vec2 fragC
 
 impl NodeSettings {
     pub fn is_valid(&self) -> bool {
-        self.comment.len() <= 16384
+        self.transport
+            .is_none_or(|b| (0.0..=1.0).contains(&b.cue) && b.asset.is_none_or(|a| a.0 != u64::MAX))
+            && self.interface.as_ref().is_none_or(|i| i.valid())
+            && self.comment.len() <= 16384
             && self.shader_uniforms.as_ref().is_none_or(|u| {
                 u.len() <= 64
                     && u.iter().all(|v| v.is_valid())

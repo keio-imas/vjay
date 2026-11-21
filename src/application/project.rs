@@ -34,8 +34,24 @@ pub struct ProjectDocument {
     pub assets: Vec<crate::media::MediaAsset>,
     #[serde(default)]
     pub workspace: crate::workspace::WorkspaceLayout,
+    #[serde(default)]
+    pub subpatches: Vec<SubpatchDocument>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SubpatchDocument {
+    pub node: NodeId,
+    #[serde(default)]
+    pub source: Option<std::path::PathBuf>,
+    pub document: Box<ProjectDocument>,
+}
+#[derive(Clone)]
+pub struct Subpatch {
+    pub node: NodeId,
+    pub source: Option<std::path::PathBuf>,
+    pub project: Box<Project>,
+}
+#[derive(Clone)]
 pub struct Project {
     pub graph: Graph,
     pub output: Option<NodeId>,
@@ -43,6 +59,7 @@ pub struct Project {
     pub controls: Vec<ControlBinding>,
     pub assets: Vec<crate::media::MediaAsset>,
     pub workspace: crate::workspace::WorkspaceLayout,
+    pub subpatches: Vec<Subpatch>,
 }
 
 impl Project {
@@ -68,6 +85,7 @@ impl Project {
             controls: Vec::new(),
             assets: Vec::new(),
             workspace: Default::default(),
+            subpatches: Vec::new(),
         })
     }
     pub fn document(&self) -> ProjectDocument {
@@ -80,10 +98,62 @@ impl Project {
             controls: self.controls.clone(),
             assets: self.assets.clone(),
             workspace: self.workspace,
+            subpatches: self
+                .subpatches
+                .iter()
+                .map(|p| SubpatchDocument {
+                    node: p.node,
+                    source: p.source.clone(),
+                    document: Box::new(p.project.document()),
+                })
+                .collect(),
         }
     }
 
-    pub fn restore(document: ProjectDocument, factory: &dyn NodeFactory) -> PortResult<Self> {
+    pub fn restore(mut document: ProjectDocument, factory: &dyn NodeFactory) -> PortResult<Self> {
+        crate::composition::identities::normalize(
+            &mut document,
+            &Default::default(),
+            &Default::default(),
+        )?;
+        Self::restore_scoped(document, factory, 0)
+    }
+    pub(crate) fn restore_scoped(
+        mut document: ProjectDocument,
+        factory: &dyn NodeFactory,
+        depth: usize,
+    ) -> PortResult<Self> {
+        if depth > 8 {
+            return Err("Subpatch nesting exceeds eight levels".into());
+        }
+        let mut subpatches = Vec::new();
+        let mut children = std::collections::HashSet::new();
+        for child in std::mem::take(&mut document.subpatches) {
+            if !children.insert(child.node) {
+                return Err("Duplicate subpatch instance".into());
+            }
+            let project = Self::restore_scoped(*child.document, factory, depth + 1)?;
+            let record = document
+                .nodes
+                .iter_mut()
+                .find(|n| n.id == child.node)
+                .ok_or("Subpatch has no container node")?;
+            if !factory.get(&record.type_id)?.composite() {
+                return Err("Node does not accept a subpatch".into());
+            }
+            record.settings.interface = Some(crate::composition::interface::of(&project, factory)?);
+            subpatches.push(Subpatch {
+                node: child.node,
+                source: child.source,
+                project: Box::new(project),
+            });
+        }
+        if document.nodes.iter().any(|n| {
+            factory.get(&n.type_id).is_ok_and(|d| d.composite()) && !children.contains(&n.id)
+        }) {
+            return Err("Subpatch definition is missing".into());
+        }
+
         if document.version != 1 {
             return Err("Unsupported project version".into());
         }
@@ -127,6 +197,7 @@ impl Project {
             }
             graph.connect(edge).map_err(|e| e.to_string())?;
         }
+        crate::transport_migrations::cues(&mut graph, factory)?;
         if let Some(output) = document.output
             && factory
                 .get(&graph.node(output).map_err(|e| e.to_string())?.type_id)?
@@ -173,6 +244,7 @@ impl Project {
             controls: document.controls,
             assets: document.assets,
             workspace: document.workspace,
+            subpatches,
         })
     }
 }

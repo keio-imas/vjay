@@ -91,6 +91,19 @@ impl Editor {
             panel = panel.child(section("Parameters"));
         }
         for index in 0..descriptor.parameters.len() {
+            if descriptor
+                .capabilities
+                .media
+                .is_some_and(|m| m.speed == index)
+            {
+                continue;
+            }
+            if descriptor.capabilities.rate.is_some_and(|r| {
+                [r.mode, r.rate, r.range, r.clip_bpm, r.dj_bpm, r.trim].contains(&index)
+            }) {
+                continue;
+            }
+
             panel = panel.child(self.parameter(id, index, false, cx));
         }
         if !descriptor.outputs.is_empty() {

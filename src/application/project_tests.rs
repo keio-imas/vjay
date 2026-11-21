@@ -133,3 +133,47 @@ fn old_text_parameter_connections_migrate_and_do_not_shift_again() {
         .port_version = 0;
     assert!(Project::restore(doc, &f).is_err());
 }
+
+#[test]
+fn legacy_seek_control_ports_and_readout_defaults_migrate_without_shifting_twice() {
+    let f = builtin_registry();
+    let mut p = Project::empty(&f).unwrap();
+    let constant = p.graph.add("Constant", &f).unwrap();
+    let seek = p.graph.add("SeekControl", &f).unwrap();
+    for node in [constant, seek] {
+        p.positions.push(NodePosition {
+            node,
+            position: Point { x: 0.0, y: 0.0 },
+        });
+    }
+    p.controls.push(ControlBinding {
+        node: seek,
+        ..Default::default()
+    });
+    p.graph
+        .connect(Connection {
+            from: constant,
+            output: 0,
+            to: seek,
+            input: 3,
+        })
+        .unwrap();
+    let mut doc = p.document();
+    doc.nodes
+        .iter_mut()
+        .find(|n| n.id == seek)
+        .unwrap()
+        .settings
+        .port_version = 0;
+    doc.connections[0].input = 1;
+    assert!(
+        serde_json::to_value(&doc).unwrap()["controls"][0]
+            .get("display")
+            .is_none()
+    );
+    let restored = Project::restore(doc, &f).unwrap();
+    assert_eq!(restored.controls[0].display, Default::default());
+    assert_eq!(restored.graph.connections().next().unwrap().input, 3);
+    let restored = Project::restore(restored.document(), &f).unwrap();
+    assert_eq!(restored.graph.connections().next().unwrap().input, 3);
+}

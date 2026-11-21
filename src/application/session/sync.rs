@@ -86,115 +86,66 @@ impl Session {
             input,
         })
     }
+    /// Find a rate source for setup idempotence; transport never edits it.
     pub fn video_sync(&self, video: NodeId) -> Option<NodeId> {
-        let schema = self.project.graph.schema(video).ok()?;
-        let speed = schema.inputs.len() + schema.capabilities.media?.speed;
-        let position = schema.inputs.len() + schema.capabilities.media?.position;
-        let seek = schema.inputs.len() + schema.capabilities.media?.seek?;
-        self.project.graph.connections().find_map(|c| {
-            if c.to != video || c.input != speed {
+        let schema = self.project().graph.schema(video).ok()?;
+        let input = schema.inputs.len() + schema.capabilities.media?.speed;
+        self.project().graph.connections().find_map(|e| {
+            if e.to != video || e.input != input {
                 return None;
             }
-            let b = self
-                .project
-                .graph
-                .schema(c.from)
-                .ok()?
-                .capabilities
-                .tempo_sync?;
-            if c.output != b.outputs[0] {
-                return None;
-            }
-            [(b.outputs[1], position), (b.outputs[2], seek)]
-                .iter()
-                .all(|(output, input)| {
-                    self.project.graph.connections().any(|e| {
-                        e.from == c.from
-                            && e.output == *output
-                            && e.to == video
-                            && e.input == *input
-                    })
-                })
-                .then_some(c.from)
+            let caps = self.project().graph.schema(e.from).ok()?.capabilities;
+            let output = caps
+                .rate
+                .map(|b| b.speed_output)
+                .or_else(|| caps.tempo_sync.map(|b| b.outputs[0]))?;
+            (e.output == output).then_some(e.from)
         })
     }
-
     pub fn setup_video_sync(&mut self, video: NodeId) -> PortResult<NodeId> {
-        if let Some(node) = self.video_sync(video) {
-            return Ok(node);
+        if let Some(id) = self.video_sync(video) {
+            return Ok(id);
         }
-        let schema = self
-            .project
-            .graph
-            .schema(video)
-            .map_err(|e| e.to_string())?;
-        let media = schema.capabilities.media.ok_or("Choose a video node")?;
-        let offset = schema.inputs.len();
-        let ports = [
-            offset + media.speed,
-            offset + media.position,
-            offset + media.seek.ok_or("Video has no seek input")?,
-        ];
+        let s = self.schema(video);
+        let input = s.inputs.len() + s.capabilities.media.ok_or("Choose a video node")?.speed;
         if self
-            .project
+            .project()
             .graph
             .connections()
-            .any(|c| c.to == video && ports.contains(&c.input))
+            .any(|e| e.to == video && e.input == input)
         {
-            return Err("Speed, Position, or Seek already has a connection; disconnect it before setting up BPM Sync".into());
+            return Err(
+                "Speed already has a connection; disconnect it before adding a rate controller"
+                    .into(),
+            );
         }
         let ty = self
             .catalog()
             .iter()
-            .find(|d| d.capabilities.tempo_sync.is_some())
-            .ok_or("BPM Sync unavailable")?
+            .find(|d| d.capabilities.rate.is_some())
+            .ok_or("No rate controller registered")?
             .type_id;
-        let node = self.add_node(ty, Point { x: 300.0, y: 500.0 })?;
-        let binding = self
-            .schema(node)
+        let controller = self.add_node(ty, Point { x: 300.0, y: 500.0 })?;
+        let output = self
+            .schema(controller)
             .capabilities
-            .tempo_sync
-            .ok_or("Invalid BPM Sync binding")?;
-        for (output, input) in binding.outputs.into_iter().zip(ports) {
-            self.connect(Connection {
-                from: node,
-                output,
-                to: video,
-                input,
-            })?;
-        }
-        self.sync_clip_duration(video, node)?;
-        Ok(node)
-    }
-    pub fn sync_clip_duration(&mut self, video: NodeId, sync: NodeId) -> PortResult<()> {
-        if let Some(duration) = self
-            .renderer
-            .media_duration(video)
-            .or_else(|| self.audio.media_duration(video))
-        {
-            let n = self.project.graph.node(video).map_err(|e| e.to_string())?;
-            let m = self.schema(video).capabilities.media.ok_or("Not a video")?;
-            let range =
-                m.end.map_or(1.0, |p| n.parameters[p]) - m.start.map_or(0.0, |p| n.parameters[p]);
-            self.set_parameter(
-                sync,
-                self.schema(sync)
-                    .capabilities
-                    .tempo_sync
-                    .ok_or("Invalid BPM Sync binding")?
-                    .duration,
-                (duration as f32 * range).clamp(0.01, 7200.0),
-            )?;
-        }
-        Ok(())
+            .rate
+            .ok_or("Missing rate output")?
+            .speed_output;
+        self.connect(Connection {
+            from: controller,
+            output,
+            to: video,
+            input,
+        })?;
+        Ok(controller)
     }
     pub fn tap_dj_bpm(&mut self, sync: NodeId) {
-        let Some(binding) = self
-            .project
-            .graph
-            .schema(sync)
-            .ok()
-            .and_then(|s| s.capabilities.tempo_sync)
+        let caps = self.schema(sync).capabilities;
+        let Some(parameter) = caps
+            .rate
+            .map(|b| b.dj_bpm)
+            .or_else(|| caps.tempo_sync.map(|b| b.dj_bpm))
         else {
             return;
         };
@@ -204,35 +155,7 @@ impl Session {
             .or_default()
             .tap(self.clock.seconds())
         {
-            let _ = self.set_parameter(sync, binding.dj_bpm, bpm as f32);
+            let _ = self.set_parameter(sync, parameter, bpm as f32);
         }
-    }
-    pub fn jog_sync_cue(&mut self, sync: NodeId, seconds: f32) -> PortResult<()> {
-        let schema = self.project.graph.schema(sync).map_err(|e| e.to_string())?;
-        let b = schema
-            .capabilities
-            .tempo_sync
-            .ok_or("Invalid BPM Sync binding")?;
-        let values = &self
-            .project
-            .graph
-            .node(sync)
-            .map_err(|e| e.to_string())?
-            .parameters;
-        let cue = (values[b.cue] + seconds / values[b.duration]).clamp(0.0, 1.0);
-        self.set_parameter(sync, b.cue, cue)
-    }
-    pub fn align_video(&mut self, sync: NodeId) -> PortResult<()> {
-        let parameter = self
-            .project
-            .graph
-            .schema(sync)
-            .map_err(|e| e.to_string())?
-            .capabilities
-            .tempo_sync
-            .ok_or("Invalid BPM Sync binding")?
-            .align;
-        self.set_parameter(sync, parameter, 1.0)?;
-        self.set_parameter(sync, parameter, 0.0)
     }
 }

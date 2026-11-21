@@ -110,6 +110,15 @@ impl NodeDescriptor {
 /// Edit-time lowering. The frame loop uses prepared data and scalar kernels;
 /// it never calls the node trait or traverses the editable graph.
 pub trait Node: Send + Sync {
+    fn composite(&self) -> bool {
+        false
+    }
+    fn boundary(&self, _: &NodeSettings) -> Option<crate::composition::Boundary> {
+        None
+    }
+    fn feedback(&self) -> Option<ScalarKernel> {
+        None
+    }
     fn video_sink(&self, _: &NodeSettings) -> Option<crate::execution::StreamRequest> {
         None
     }

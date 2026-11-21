@@ -112,7 +112,12 @@ impl Editor {
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                            this.begin_node_move(id, event, window, cx)
+                            if event.click_count >= 2 && this.session().is_subpatch(id) {
+                                this.open_subpatch(id, cx);
+                                cx.stop_propagation();
+                            } else {
+                                this.begin_node_move(id, event, window, cx)
+                            }
                         }),
                     ),
             )

@@ -133,6 +133,9 @@ impl Editor {
             additive,
         });
         self.node_move = None;
+        if let Some(Drag::MediaNudge(node)) = self.drag {
+            let _ = self.session_mut().nudge_clip(node, 0.0);
+        }
         self.drag = None;
         self.cable = None;
         self.selected_control = None;
@@ -217,6 +220,9 @@ impl Editor {
                 }
                 Err(error) => {
                     self.message = error;
+                    if let Some(Drag::MediaNudge(node)) = self.drag {
+                        let _ = self.session_mut().nudge_clip(node, 0.0);
+                    }
                     self.drag = None;
                     return;
                 }
@@ -237,6 +243,9 @@ impl Editor {
     pub(super) fn finish_gesture(&mut self) {
         self.marquee = None;
         self.node_move = None;
+        if let Some(Drag::MediaNudge(node)) = self.drag {
+            let _ = self.session_mut().nudge_clip(node, 0.0);
+        }
         self.drag = None;
     }
     pub(super) fn cancel_gesture(&mut self) {
@@ -252,6 +261,9 @@ impl Editor {
                 self.apply(result);
                 self.selection = movement.before;
             }
+        }
+        if let Some(Drag::MediaNudge(node)) = self.drag {
+            let _ = self.session_mut().nudge_clip(node, 0.0);
         }
         self.drag = None;
     }

@@ -6,8 +6,7 @@ fn ear_matching_needs_no_bpm_jogs_from_playhead_and_retains_pitch_after_pause() 
     counts.borrow_mut().duration = Some(20.0);
     let video = s.import_video("/fixtures/clip.mov".into(), None).unwrap();
     let sync = s.setup_video_sync(video).unwrap();
-    let b = s.schema(sync).capabilities.tempo_sync.unwrap();
-    let manual = b.manual.unwrap();
+    let b = s.schema(sync).capabilities.rate.unwrap();
     s.set_parameter(sync, b.clip_bpm, 333.0).unwrap();
     s.set_parameter(sync, b.dj_bpm, 81.0).unwrap();
     s.render_at(0.0).unwrap();
@@ -15,10 +14,10 @@ fn ear_matching_needs_no_bpm_jogs_from_playhead_and_retains_pitch_after_pause() 
     s.adjust_deck_rate(sync, 1.5).unwrap();
     s.render_at(1.0).unwrap();
     assert!((s.signal_value(sync, 0).unwrap() - 1.015).abs() < 1e-6);
-    s.set_parameter(sync, b.nudge, 2.0).unwrap();
+    s.nudge_clip(video, 1.0).unwrap();
     s.render_at(2.0).unwrap();
-    assert!((s.signal_value(sync, 0).unwrap() - 1.0353).abs() < 1e-6);
-    s.set_parameter(sync, b.nudge, 0.0).unwrap();
+    assert!((s.media_state(video).unwrap().speed - 1.0353).abs() < 1e-6);
+    s.nudge_clip(video, 0.0).unwrap();
     s.render_at(3.0).unwrap();
     let before = s.clip_position(video).unwrap().seconds;
     assert!(before > 2.0);
@@ -38,7 +37,7 @@ fn ear_matching_needs_no_bpm_jogs_from_playhead_and_retains_pitch_after_pause() 
     s.toggle_clip_playback(video).unwrap();
     s.render_at(4.2).unwrap();
     assert_eq!(
-        s.project().graph.node(sync).unwrap().parameters[manual.rate],
+        s.project().graph.node(sync).unwrap().parameters[b.rate],
         101.5
     );
     s.return_to_cue(video).unwrap();
@@ -46,7 +45,7 @@ fn ear_matching_needs_no_bpm_jogs_from_playhead_and_retains_pitch_after_pause() 
     assert!((s.clip_position(video).unwrap().seconds - cue).abs() < 1e-4);
 }
 #[test]
-fn partially_wired_deck_is_not_mistaken_for_a_complete_controller() {
+fn a_speed_connection_is_sufficient_and_no_transport_connections_are_added() {
     let (mut s, _, _) = fixture(Project::demo(&builtin_registry()).unwrap().document());
     let video = s.import_video("/fixtures/clip.mov".into(), None).unwrap();
     let sync = s.add_node("LipSync", Point { x: 0.0, y: 0.0 }).unwrap();
@@ -54,12 +53,12 @@ fn partially_wired_deck_is_not_mistaken_for_a_complete_controller() {
         from: sync,
         output: 0,
         to: video,
-        input: 0,
+        input: s.schema(video).inputs.len(),
     })
     .unwrap();
-    assert_eq!(s.video_sync(video), None);
+    assert_eq!(s.video_sync(video), Some(sync));
     let count = s.project().graph.connection_count();
-    assert!(s.setup_video_sync(video).is_err());
+    assert_eq!(s.setup_video_sync(video).unwrap(), sync);
     assert_eq!(s.project().graph.connection_count(), count);
 }
 #[test]

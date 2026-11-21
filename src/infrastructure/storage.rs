@@ -38,7 +38,18 @@ impl ProjectStore for JsonProjectStore {
         if bytes.len() > 64 * 1024 * 1024 {
             return Err("Project is larger than 64 MiB".into());
         }
-        serde_json::from_slice(&bytes).map_err(|e| e.to_string())
+        let mut document: ProjectDocument =
+            serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+        let base = if self.path.is_absolute() {
+            self.path.clone()
+        } else {
+            std::env::current_dir()
+                .map_err(|e| e.to_string())?
+                .join(&self.path)
+        };
+        let base = base.parent().ok_or("Invalid project directory")?;
+        resolve_paths(&mut document, base, 0)?;
+        Ok(document)
     }
     fn save(&self, document: &ProjectDocument) -> PortResult<()> {
         let bytes = serde_json::to_vec_pretty(document).map_err(|e| e.to_string())?;
@@ -86,4 +97,24 @@ pub fn write_ppm(path: &Path, frame: &CapturedFrame) -> PortResult<()> {
         bytes.extend_from_slice(&pixel[..3]);
     }
     atomic_write(path, &bytes)
+}
+
+fn resolve_paths(document: &mut ProjectDocument, base: &Path, depth: usize) -> PortResult<()> {
+    if depth > 8 {
+        return Err("Subpatch nesting exceeds eight levels".into());
+    }
+    for asset in &mut document.assets {
+        if asset.path.is_relative() {
+            asset.path = base.join(&asset.path);
+        }
+    }
+    for child in &mut document.subpatches {
+        if let Some(source) = &mut child.source
+            && source.is_relative()
+        {
+            *source = base.join(&*source);
+        }
+        resolve_paths(&mut child.document, base, depth + 1)?;
+    }
+    Ok(())
 }

@@ -55,35 +55,9 @@ physical camera compatibility and permission prompts require testing on the targ
 
 ## Match a clip to the floor track without knowing BPM
 
-![By-ear deck controls in Inspector](images/deck-sync.png)
+Media transport is now independent of its rate controller. Select the Video node for
+Seek, Jog, local Pause, Nudge and Cue. Select Deck Rate to change the base playback rate.
+Seek Control displays the media node's actual Playhead while emitting separate Seek requests.
 
-The VJ hears the DJ's track from the floor or an external monitoring source. VJAY cannot
-infer the playing track's BPM from rekordbox history. The clip's local cue audio lets the
-VJ compare the two by ear.
-
-1. Load the clip in Video or Loadable Video and select it.
-2. Under **Cue / Beat match**, choose the headphone audio device and turn **Cue audio: On**.
-   This explicitly connects the clip's Audio output to Cue / Headphones.
-3. Press **Connect Deck Sync…**. This explicitly adds a Deck Sync controller and connects
-   Speed, Position, and Seek. It refuses to replace existing connections. Newly added
-   controllers default to **By ear** mode; no BPM values are needed.
-4. Find a matching phrase with the seek bar or **Jog**. Drag Jog left/right, or use the
-   ±100 ms and ±10 ms buttons. Shift-drag makes Jog ten times finer. Jogs are relative to
-   the current playhead, rather than the original clip cue.
-5. Adjust **Playback rate** until the clip's beat and the floor beat stop drifting apart.
-   The fader range defaults to ±16%. Use the ±0.1% / ±0.01% buttons for small changes;
-   Shift-drag also works on the numeric value. Reset returns to 100%.
-6. Hold **Nudge −** or **Nudge +** to align their beats. The clip temporarily runs 2%
-   slower/faster; releasing restores its set rate and keeps the new phase.
-7. Use **Set cue** to store the current position and **Cue** to return to it. **Pause/Play**
-   affects that clip and its cue audio, preserving the chosen rate when resumed.
-
-The controls adjust the actual video and optional clip audio through the same Speed,
-Position, and Seek connections. Rate changes also change audio pitch; time stretching
-and automatic audio beat detection are not implemented. Monitor audio is local and does
-not modify the DJ's playback. Avoid routing the cue device into the venue's PA.
-
-**BPM ratio** remains available when the clip and floor BPM are known. It retains Clip BPM,
-DJ BPM, Tap, trim, and target-beat alignment. Older projects retain BPM ratio mode and their
-existing cue when loaded. The serialized node ID remains `LipSync` for compatibility;
-its displayed name is **Deck Sync**.
+See [Subpatches and media transport](PATCHING_AND_TRANSPORT.md) for the current workflow,
+Control Panel seek bars, external trigger connections, and saved-project compatibility.

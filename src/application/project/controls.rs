@@ -15,6 +15,11 @@ pub struct ControlBinding {
     pub label: String,
     #[serde(default)]
     pub range: Option<[f32; 2]>,
+    #[serde(
+        default,
+        skip_serializing_if = "crate::value_display::ControlDisplay::is_default"
+    )]
+    pub display: crate::value_display::ControlDisplay,
 }
 pub use vjay_domain::capabilities::WidgetKind;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -35,6 +40,7 @@ impl Default for ControlBinding {
             target: ControlTarget::Parameter,
             label: String::new(),
             range: None,
+            display: Default::default(),
         }
     }
 }
@@ -69,6 +75,16 @@ pub fn valid_control(
                     .is_some_and(|p| a >= p.min && b <= p.max))
     });
     valid
+        && [control.display.output, control.display.total_output]
+            .into_iter()
+            .all(|index| {
+                index.is_none_or(|i| {
+                    descriptor
+                        .outputs
+                        .get(i)
+                        .is_some_and(|p| p.signal == vjay_domain::port::SignalType::Scalar)
+                })
+            })
         && (control.widget != WidgetKind::Files
             || (control.target == ControlTarget::Parameter
                 && descriptor.capabilities.asset_selection_parameter == Some(control.parameter)))

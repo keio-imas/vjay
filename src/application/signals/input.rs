@@ -4,6 +4,7 @@ use vjay_domain::graph::NodeId;
 
 #[derive(Default)]
 pub(super) struct InputState {
+    pub media: HashMap<NodeId, vjay_domain::transport::MediaState>,
     pub values: HashMap<NodeId, [f32; 16]>,
     pub files: HashMap<NodeId, Vec<Option<vjay_domain::execution::FileValue>>>,
     pub text: HashMap<NodeId, Vec<std::sync::Arc<str>>>,
@@ -109,6 +110,9 @@ impl InputState {
 }
 
 impl vjay_domain::execution::SignalInputs for InputState {
+    fn media(&self, node: NodeId) -> vjay_domain::transport::MediaState {
+        self.media.get(&node).copied().unwrap_or_default()
+    }
     fn node_file(&self, node: NodeId, output: usize) -> Option<vjay_domain::execution::FileValue> {
         self.files
             .get(&node)

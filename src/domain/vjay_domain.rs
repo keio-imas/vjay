@@ -39,3 +39,11 @@ mod file_nodes;
 mod video_io_nodes;
 
 mod media_device;
+
+pub mod transport;
+
+pub mod composition;
+
+mod seek_control;
+
+mod deck_rate;

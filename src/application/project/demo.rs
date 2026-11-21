@@ -69,6 +69,7 @@ impl Project {
             controls,
             assets: Vec::new(),
             workspace: Default::default(),
+            subpatches: Vec::new(),
         })
     }
 }

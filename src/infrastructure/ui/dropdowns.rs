@@ -3,6 +3,7 @@ use super::*;
 enum ChoiceTarget {
     Parameter(usize),
     Property(String),
+    ControlDisplay(u64, control_display::Field),
 }
 pub(super) struct ParameterMenu {
     node: NodeId,
@@ -10,6 +11,21 @@ pub(super) struct ParameterMenu {
     screen: Position,
 }
 impl Editor {
+    pub(super) fn open_display_menu(
+        &mut self,
+        control: u64,
+        node: NodeId,
+        field: control_display::Field,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.parameter_menu = Some(ParameterMenu {
+            node,
+            target: ChoiceTarget::ControlDisplay(control, field),
+            screen: position(window.mouse_position()),
+        });
+        cx.notify();
+    }
     pub(in crate::ui) fn trigger_parameter(
         &self,
         node: NodeId,
@@ -171,6 +187,9 @@ impl Editor {
                 settings.properties.insert(key.clone(), label.into());
                 self.session_mut().set_settings(node, settings)
             }
+            ChoiceTarget::ControlDisplay(id, field) => {
+                self.apply_display_choice(*id, *field, value)
+            }
         }
     }
     pub(super) fn parameter_popup(
@@ -183,15 +202,24 @@ impl Editor {
         let node = menu.node;
         let target = menu.target.clone();
         let schema = self.session().project().graph.schema(node).ok()?;
-        let (choices, minimum) = match &target {
+        let choices: Vec<(String, f32)> = match &target {
             ChoiceTarget::Parameter(index) => {
                 let info = schema.parameters.get(*index)?;
-                (info.choices, info.min)
+                info.choices
+                    .iter()
+                    .enumerate()
+                    .map(|(i, label)| (label.to_string(), info.min + i as f32))
+                    .collect()
             }
             ChoiceTarget::Property(key) => {
                 let info = schema.properties.iter().find(|p| p.key == *key)?;
-                (info.choices, 0.0)
+                info.choices
+                    .iter()
+                    .enumerate()
+                    .map(|(i, label)| (label.to_string(), i as f32))
+                    .collect()
             }
+            ChoiceTarget::ControlDisplay(id, field) => self.display_choices(*id, *field),
         };
         Some(
             div()
@@ -218,20 +246,24 @@ impl Editor {
                     cx.notify();
                 }))
                 .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
-                .children(choices.iter().enumerate().map(|(index, &label)| {
-                    let value = minimum + index as f32;
-                    let target = target.clone();
-                    button(SharedString::from(format!("option-{index}")), label)
-                        .debug_selector(move || format!("option-{index}"))
-                        .text_xs()
-                        .flex_shrink_0()
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            let result = this.apply_choice(node, &target, label, value);
-                            this.apply(result);
-                            this.parameter_menu = None;
-                            cx.notify();
-                        }))
-                }))
+                .children(
+                    choices
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, (label, value))| {
+                            let target = target.clone();
+                            button(SharedString::from(format!("option-{index}")), label.clone())
+                                .debug_selector(move || format!("option-{index}"))
+                                .text_xs()
+                                .flex_shrink_0()
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    let result = this.apply_choice(node, &target, &label, value);
+                                    this.apply(result);
+                                    this.parameter_menu = None;
+                                    cx.notify();
+                                }))
+                        }),
+                )
                 .into_any_element(),
         )
     }

@@ -81,7 +81,7 @@ fn node_and_port_storage_stay_aligned_after_sparse_ids_swap_removal_and_batch_re
     assert_eq!(graph.node(target).unwrap().type_id, ids::VIDEO);
     assert_eq!(
         graph.ports()[graph.index(target).unwrap()].outputs().len(),
-        2
+        8
     );
     assert_eq!(
         graph.ports()[graph.index(source).unwrap()].outputs().len(),

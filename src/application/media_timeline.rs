@@ -7,8 +7,9 @@ use std::collections::HashMap;
 use vjay_domain::{
     graph::{Graph, NodeId},
     node::AssetId,
+    transport::{MediaState, TransportAction},
 };
-
+mod commands;
 struct Source {
     node: NodeId,
     asset: AssetId,
@@ -23,6 +24,14 @@ struct Source {
     seek: Option<ValueRef>,
     last_seek: bool,
     seek_revision: u64,
+    commands: [Option<ValueRef>; 8],
+    last_commands: [f32; 8],
+    actions: Vec<TransportAction>,
+    paused: bool,
+    cue: f32,
+    rate: f32,
+    duration: f64,
+    user_nudge: f32,
 }
 #[derive(Default)]
 pub struct MediaTimeline {
@@ -34,28 +43,26 @@ impl MediaTimeline {
     pub fn rebuild(&mut self, graph: &Graph, signals: &SignalEngine) -> PortResult<()> {
         let mut old: HashMap<_, _> = std::mem::take(&mut self.sources)
             .into_iter()
-            .map(|source| ((source.node, source.asset), source))
+            .map(|s| ((s.node, s.asset), s))
             .collect();
         self.indices.clear();
-        for node in graph.nodes().iter().filter(|node| {
+        for node in graph.nodes().iter().filter(|n| {
             signals
-                .capabilities(node.id)
+                .capabilities(n.id)
                 .is_some_and(|c| c.media.is_some())
         }) {
             let Some(asset) = node.asset else {
                 continue;
             };
-            let binding = signals
+            let caps = signals
                 .capabilities(node.id)
-                .and_then(|c| c.media)
-                .ok_or("Missing media binding")?;
-            let speed = signals
-                .parameter(node.id, binding.speed)
-                .ok_or("Video speed parameter missing")?;
+                .ok_or("Missing media capabilities")?;
+            let b = caps.media.ok_or("Missing media binding")?;
+            let speed = signals.parameter(node.id, b.speed).ok_or("Missing speed")?;
             let position = signals
-                .parameter(node.id, binding.position)
-                .ok_or("Video position parameter missing")?;
-            let mut source = old.remove(&(node.id, asset)).unwrap_or(Source {
+                .parameter(node.id, b.position)
+                .ok_or("Missing position")?;
+            let mut s = old.remove(&(node.id, asset)).unwrap_or(Source {
                 node: node.id,
                 asset,
                 speed,
@@ -69,14 +76,29 @@ impl MediaTimeline {
                 seek: None,
                 last_seek: false,
                 seek_revision: 0,
+                commands: [None; 8],
+                last_commands: [0.0; 8],
+                actions: Vec::with_capacity(16),
+                paused: false,
+                cue: node
+                    .settings
+                    .transport
+                    .filter(|b| b.asset == Some(asset))
+                    .map_or(0.0, |b| b.cue),
+                rate: 1.0,
+                duration: 0.0,
+                user_nudge: 0.0,
             });
-            source.bounds = [binding.looping, binding.start, binding.end]
-                .map(|p| p.and_then(|i| signals.parameter(node.id, i)));
-            source.speed = speed;
-            source.position = position;
-            source.seek = binding.seek.and_then(|p| signals.parameter(node.id, p));
+            s.speed = speed;
+            s.position = position;
+            s.bounds =
+                [b.looping, b.start, b.end].map(|p| p.and_then(|i| signals.parameter(node.id, i)));
+            s.seek = b.seek.and_then(|p| signals.parameter(node.id, p));
+            s.commands = caps
+                .transport
+                .map_or([None; 8], |c| c.inputs.map(|i| signals.input(node.id, i)));
             self.indices.insert(node.id, self.sources.len());
-            self.sources.push(source);
+            self.sources.push(s);
         }
         Ok(())
     }
@@ -91,69 +113,122 @@ impl MediaTimeline {
     ) {
         let delta = self.last_time.map_or(0.0, |last| (seconds - last).max(0.0));
         self.last_time = Some(seconds);
-        for source in &mut self.sources {
-            let position = source.position.read(&signals.values);
-            let seek = source.seek.is_some_and(|v| v.read(&signals.values) > 0.5);
-            let seek_now = seek && !source.last_seek
-                || source.seek.is_some() && signals.triggered(source.node);
-            source.last_seek = seek;
+        for s in &mut self.sources {
+            let position = s.position.read(&signals.values);
+            let seek = s.seek.is_some_and(|v| v.read(&signals.values) > 0.5);
+            let seek_now = seek && !s.last_seek || s.seek.is_some() && signals.triggered(s.node);
+            s.last_seek = seek;
             let window = crate::media::PlaybackWindow {
-                looping: source.bounds[0].is_none_or(|v| v.read(&signals.values) >= 0.5),
-                start: source.bounds[1].map_or(0.0, |v| v.read(&signals.values)),
-                end: source.bounds[2].map_or(1.0, |v| v.read(&signals.values)),
+                looping: s.bounds[0].is_none_or(|v| v.read(&signals.values) >= 0.5),
+                start: s.bounds[1].map_or(0.0, |v| v.read(&signals.values)),
+                end: s.bounds[2].map_or(1.0, |v| v.read(&signals.values)),
             };
-            let moved = seek_now || position != source.last_position || window != source.window;
+            let moved = seek_now || position != s.last_position || window != s.window;
             if moved {
-                source.seek_revision = source.seek_revision.wrapping_add(1);
-                source.base = 0.0;
-                source.last_position = position;
+                s.base = 0.0;
+                s.last_position = position;
+                s.seek_revision = s.seek_revision.wrapping_add(1);
             }
-            source.window = window;
-            let available = ready(source.node);
-            if available && source.ready && !moved {
-                source.base += delta * source.speed.read(&signals.values) as f64;
+            s.window = window;
+            s.read_commands(signals);
+            s.rate = s.speed.read(&signals.values);
+            let available = ready(s.node);
+            if available && s.ready && !moved && s.actions.is_empty() && s.pending_seek.is_none() {
+                s.base += delta * f64::from(s.effective_speed());
             }
-            source.ready = available;
+            s.ready = available;
         }
-    }
-    pub fn seek_revision(&self, node: NodeId) -> u64 {
-        self.indices
-            .get(&node)
-            .map_or(0, |&i| self.sources[i].seek_revision)
-    }
-    pub fn window(&self, node: NodeId) -> crate::media::PlaybackWindow {
-        self.indices
-            .get(&node)
-            .map_or(Default::default(), |&i| self.sources[i].window)
     }
     pub fn ready(&self, node: NodeId) -> bool {
         self.indices
             .get(&node)
             .is_none_or(|&i| self.sources[i].ready)
     }
-    pub fn seek(&mut self, target: f32) {
-        for source in &mut self.sources {
-            source.pending_seek = Some(target);
-        }
-    }
-    pub fn resolve_seeks(&mut self, duration: impl Fn(NodeId) -> Option<f64>) {
-        for source in &mut self.sources {
-            if source.ready
-                && let Some(target) = source.pending_seek
-                && let Some(duration) = duration(source.node)
-            {
-                let (start, end) = source.window.bounds(duration);
-                source.base =
-                    (target as f64 * (1.0 - 1e-7) - source.last_position as f64) * (end - start);
-                source.pending_seek = None;
-                source.seek_revision = source.seek_revision.wrapping_add(1);
-            }
-        }
+    pub fn window(&self, node: NodeId) -> crate::media::PlaybackWindow {
+        self.indices
+            .get(&node)
+            .map_or(Default::default(), |&i| self.sources[i].window)
     }
     pub fn base(&self, node: NodeId) -> f64 {
         self.indices
             .get(&node)
             .map_or(0.0, |&i| self.sources[i].base)
+    }
+    pub fn speed(&self, node: NodeId) -> Option<f32> {
+        self.indices
+            .get(&node)
+            .map(|&i| self.sources[i].effective_speed())
+    }
+    pub fn seek_revision(&self, node: NodeId) -> u64 {
+        self.indices
+            .get(&node)
+            .map_or(0, |&i| self.sources[i].seek_revision)
+    }
+    pub fn state(&self, node: NodeId) -> Option<MediaState> {
+        self.indices.get(&node).map(|&i| self.sources[i].state())
+    }
+    pub fn bookmarks(
+        &self,
+    ) -> impl Iterator<Item = (NodeId, vjay_domain::transport::Bookmark)> + '_ {
+        self.sources.iter().map(|s| {
+            (
+                s.node,
+                vjay_domain::transport::Bookmark {
+                    asset: Some(s.asset),
+                    cue: s.cue,
+                },
+            )
+        })
+    }
+    pub fn publish(&self, signals: &mut SignalEngine) {
+        for s in &self.sources {
+            signals.set_media_feedback(s.node, s.state());
+        }
+    }
+    pub fn command(&mut self, node: NodeId, action: TransportAction) -> PortResult<()> {
+        if !action.valid() {
+            return Err("Invalid transport action".into());
+        }
+        let &index = self
+            .indices
+            .get(&node)
+            .ok_or("Load the clip before using transport")?;
+        let s = &mut self.sources[index];
+        if matches!(action, TransportAction::SetCue) && s.ready && s.duration > 0.0 {
+            s.cue = s.state().position;
+            return Ok(());
+        }
+        if s.actions.len() >= 64 {
+            return Err("Too many pending transport actions".into());
+        }
+        s.actions.push(action);
+        Ok(())
+    }
+    pub fn nudge(&mut self, node: NodeId, value: f32) -> PortResult<()> {
+        if !value.is_finite() {
+            return Err("Invalid nudge".into());
+        }
+        let &i = self.indices.get(&node).ok_or("Load a clip first")?;
+        self.sources[i].user_nudge = value.clamp(-1.0, 1.0);
+        Ok(())
+    }
+    pub fn seek(&mut self, target: f32) {
+        for s in &mut self.sources {
+            s.pending_seek = Some(target);
+        }
+    }
+    pub fn resolve_seeks(&mut self, duration: impl Fn(NodeId) -> Option<f64>) {
+        for s in &mut self.sources {
+            if let Some(d) = duration(s.node).filter(|v| v.is_finite() && *v > 0.0) {
+                s.duration = d;
+            }
+            if s.ready && s.duration > 0.0 {
+                if let Some(p) = s.pending_seek.take() {
+                    s.seek_to(p);
+                }
+                s.apply_actions();
+            }
+        }
     }
     pub fn apply(&self, plan: &mut RenderPlan) {
         for step in &mut plan.steps {
@@ -163,81 +238,5 @@ impl MediaTimeline {
         }
     }
 }
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use vjay_domain::{
-        builtins::{ids, registry},
-        node::AssetId,
-    };
-    #[test]
-    fn pending_video_freezes_shared_timeline_and_range_edits_restart_it() {
-        let factory = registry();
-        let mut graph = Graph::default();
-        let video = graph.add(ids::VIDEO, &factory).unwrap();
-        graph.bind_asset(video, AssetId(0), &factory).unwrap();
-        let mut signals = SignalEngine::default();
-        signals.rebuild(&graph, &factory).unwrap();
-        signals.tick(0.0);
-        let mut timeline = MediaTimeline::default();
-        timeline.rebuild(&graph, &signals).unwrap();
-        timeline.tick_ready(0.0, &signals, |_| false);
-        timeline.tick_ready(6.0, &signals, |_| false);
-        assert_eq!(timeline.base(video), 0.0);
-        assert!(!timeline.ready(video));
-        timeline.tick_ready(6.1, &signals, |_| true);
-        assert_eq!(timeline.base(video), 0.0);
-        timeline.tick_ready(6.6, &signals, |_| true);
-        assert!((timeline.base(video) - 0.5).abs() < 1e-6);
-        graph.set_parameter(video, 3, 0.25, &factory).unwrap();
-        signals.rebuild(&graph, &factory).unwrap();
-        timeline.rebuild(&graph, &signals).unwrap();
-        timeline.tick_ready(6.6, &signals, |_| true);
-        assert_eq!(timeline.base(video), 0.0);
-        assert_eq!(timeline.window(video).start, 0.25);
-    }
-}
-
-#[cfg(test)]
-mod seek_tests {
-    use super::*;
-    use vjay_domain::{
-        builtins::{ids, registry},
-        node::AssetId,
-    };
-    #[test]
-    fn seek_waits_for_ready_media_and_end_does_not_wrap_to_start() {
-        let factory = registry();
-        let mut graph = Graph::default();
-        let video = graph.add(ids::VIDEO, &factory).unwrap();
-        graph.bind_asset(video, AssetId(0), &factory).unwrap();
-        for (p, v) in [(1, 0.5), (3, 0.25), (4, 0.75)] {
-            graph.set_parameter(video, p, v, &factory).unwrap();
-        }
-        let mut signals = SignalEngine::default();
-        signals.rebuild(&graph, &factory).unwrap();
-        signals.tick(0.0);
-        let mut timeline = MediaTimeline::default();
-        timeline.rebuild(&graph, &signals).unwrap();
-        timeline.tick_ready(0.0, &signals, |_| false);
-        timeline.seek(1.0);
-        timeline.resolve_seeks(|_| Some(20.0));
-        assert_eq!(timeline.base(video), 0.0);
-        timeline.tick_ready(1.0, &signals, |_| true);
-        timeline.resolve_seeks(|_| Some(20.0));
-        let (time, _) = timeline
-            .window(video)
-            .resolve(timeline.base(video), 0.5, 20.0);
-        assert!((time - 15.0).abs() < 0.00001);
-        timeline.seek(0.0);
-        timeline.resolve_seeks(|_| Some(20.0));
-        assert_eq!(
-            timeline
-                .window(video)
-                .resolve(timeline.base(video), 0.5, 20.0)
-                .0,
-            5.0
-        );
-    }
-}
+mod tests;

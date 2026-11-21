@@ -1,13 +1,8 @@
-use super::Session;
-use crate::{media::MediaAsset, ports::PortResult, project::Point};
+use super::*;
+use crate::media::MediaAsset;
 use std::path::PathBuf;
-use vjay_domain::{
-    graph::{MAX_NODES, NodeId},
-    node::AssetId,
-};
-
+use vjay_domain::node::AssetId;
 impl Session {
-    /// Import a disconnected clip. Users own every connection in the patch.
     pub fn import_video(&mut self, path: PathBuf, target: Option<NodeId>) -> PortResult<NodeId> {
         self.import_asset(path, target, false)
     }
@@ -21,28 +16,18 @@ impl Session {
         still: bool,
     ) -> PortResult<NodeId> {
         if path.as_os_str().is_empty() {
-            return Err("Choose a video file".into());
-        }
-        if let Some(target) = target
-            && let Ok(n) = self.project.graph.node(target)
-            && self
-                .project
-                .assets
-                .iter()
-                .any(|a| Some(a.id) == n.asset && a.path == path)
-        {
-            return Ok(target);
-        }
-        if self.project.assets.len() >= MAX_NODES {
-            return Err("Media asset limit exceeded".into());
+            return Err("Choose a media file".into());
         }
         if let Some(id) = target {
-            let caps = self
-                .project
-                .graph
-                .schema(id)
-                .map_err(|e| e.to_string())?
-                .capabilities;
+            let p = self.owner(id).ok_or("Unknown media node")?;
+            let n = p.graph.node(id).map_err(|e| e.to_string())?;
+            if p.assets
+                .iter()
+                .any(|a| Some(a.id) == n.asset && a.path == path)
+            {
+                return Ok(id);
+            }
+            let caps = p.graph.schema(id).map_err(|e| e.to_string())?.capabilities;
             if if still {
                 !caps.still_image
             } else {
@@ -51,17 +36,10 @@ impl Session {
                 return Err("Choose a compatible media node".into());
             }
         }
-        let asset = AssetId(match self.project.assets.iter().map(|a| a.id.0).max() {
-            Some(id) => id
-                .checked_add(1)
-                .filter(|id| *id != u64::MAX)
-                .ok_or("Media IDs exhausted")?,
-            None => 0,
-        });
         let id = match target {
             Some(id) => id,
             None => {
-                let type_id = self
+                let ty = self
                     .catalog()
                     .iter()
                     .find(|d| {
@@ -71,23 +49,42 @@ impl Session {
                             d.capabilities.media.is_some()
                         }
                     })
-                    .map(|d| d.type_id)
-                    .ok_or("No media node is registered")?;
-                self.add_node(type_id, Point { x: 30.0, y: 80.0 })?
+                    .ok_or("No media node registered")?
+                    .type_id;
+                self.add_node(ty, Point { x: 30.0, y: 80.0 })?
             }
         };
-        self.project
+        let asset = AssetId(self.next_asset_id);
+        self.next_asset_id = self
+            .next_asset_id
+            .checked_add(1)
+            .ok_or("Asset IDs exhausted")?;
+        let Self {
+            project,
+            ancestors,
+            nodes,
+            ..
+        } = self;
+        let owner = if project.owner(id).is_some() {
+            project.owner_mut(id)
+        } else {
+            ancestors
+                .iter_mut()
+                .rev()
+                .find_map(|a| a.parent.owner_mut(id))
+        }
+        .ok_or("Unknown media owner")?;
+        if owner.assets.len() >= vjay_domain::graph::MAX_NODES {
+            return Err("Media asset limit exceeded".into());
+        }
+        owner
             .graph
-            .bind_asset(id, asset, self.nodes.as_ref())
+            .bind_asset(id, asset, nodes.as_ref())
             .map_err(|e| e.to_string())?;
-        self.project.assets.push(MediaAsset { id: asset, path });
-        self.project.assets.retain(|asset| {
-            self.project
-                .graph
-                .nodes()
-                .iter()
-                .any(|node| node.asset == Some(asset.id))
-        });
+        owner.assets.push(MediaAsset { id: asset, path });
+        owner
+            .assets
+            .retain(|a| owner.graph.nodes().iter().any(|n| n.asset == Some(a.id)));
         self.invalidate(true);
         Ok(id)
     }
