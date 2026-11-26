@@ -182,6 +182,8 @@ Rendering failures appear in the application status or as runtime errors after s
 NV12/P010 decoder surfaces on the same GPU as the wgpu D3D12 renderer. A persistent video
 processor scales and converts them on the GPU. Three shared BGRA transfer textures and
 shared fences order the native work and GPU copies into a persistent render input.
+Each render frame submits the copies for all updated movie sources together. Frames
+without a new movie image skip the transfer submission.
 Playback does not pipe RGBA pixels through FFmpeg or upload full CPU frames.
 
 The status reads `DXVA · D3D11 → D3D12 GPU frames` once a frame is available. Unsupported
@@ -200,8 +202,15 @@ It generates a 1080p H.264 file with B-frames, opens two independent sources, ch
 colors after scaling and repeated seeks, coalesces a seek burst, and verifies decoder
 reuse, zero CPU pixel-transfer counters, and background teardown. Its explicit pixel
 readback is test-only. This test is not run on hosted Windows CI without a native GPU.
-The Windows code and test are cross-checked with strict Clippy; GTX 1080 runtime behavior
-and before/after playback timings remain unmeasured here.
+The Windows test passed on a GTX 1080, and the workspace passed strict Clippy on Windows.
+
+The headless playback benchmark accepts two local videos. On Windows, `native` uses
+DXVA and `legacy` uses FFmpeg with CPU pixel uploads. Both render through DX12. The
+reported latency includes GPU completion for each frame.
+
+```powershell
+cargo run --release --locked --example playback_bench -- a.mp4 b.mp4 1920x1080 120 native
+```
 
 For a real playback trace in PowerShell:
 
@@ -299,10 +308,10 @@ interoperability. Use Syphon on macOS.
 | Component | Validation or limitation |
 | --- | --- |
 | GPUI + wgpu native previews and output windows | Validated on macOS / Apple M2 Pro / Metal |
-| Windows native previews and output windows | DX12 adapter implemented; native runtime validation requires a Windows desktop and GPU |
+| Windows native previews and output windows | Native DX12 tests passed on Windows with a GTX 1080 |
 | Media Device Input | macOS AVFoundation / Metal; GPU path tested with generated IOSurfaces; physical devices require local validation |
 | VideoToolbox decode and GPU scaling | Validated for supported macOS codecs |
-| Windows GPU movie decoding | Media Foundation / DXVA and D3D11→D3D12 sharing implemented; strict cross-check only, native GPU test and performance measurements outstanding |
+| Windows GPU movie decoding | Media Foundation / DXVA and D3D11→D3D12 sharing tested on Windows with a GTX 1080 |
 | Linux native presentation and GPU-decode PAL | Not implemented |
 | Portable FFmpeg decoder | CPU-based; not the selected macOS or Windows playback policy |
 | MIDI / OSC / Link | Native and virtual-input tests exist; physical controller coverage is limited |

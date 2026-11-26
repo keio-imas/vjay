@@ -1,5 +1,9 @@
 use crate::gpu::blit::Blit;
 use vjay_application::ports::PortResult;
+use windows::Win32::{
+    Foundation::{WAIT_OBJECT_0, WAIT_TIMEOUT},
+    System::Threading::WaitForSingleObject,
+};
 
 /// This state is owned jointly with the child HWND's destruction callback.
 pub(super) struct SurfacePresenter {
@@ -84,10 +88,17 @@ impl SurfacePresenter {
         }
     }
 
+    pub fn discard_unpresented(&mut self) {
+        // A later pass can fail after this surface acquired a frame. Recover
+        // before waiting again, since that frame never returned a DXGI slot.
+        self.resize |= self.pending.take().is_some();
+    }
+
     pub fn encode(
         &mut self,
         device: &wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
+        manual_latency_wait: bool,
     ) -> PortResult<()> {
         if self.dimensions.contains(&0) {
             return Ok(());
@@ -107,6 +118,27 @@ impl SurfacePresenter {
             config.height = self.dimensions[1];
             self.surface.configure(device, config);
             self.resize = false;
+        }
+        if manual_latency_wait {
+            // Preserve the bounded wait for vsynced outputs. Editor/node previews
+            // skip this frame if DXGI's presentation queue is already full.
+            let timeout_ms = if self.vsync { 1000 } else { 0 };
+            // SAFETY: The surface owns the handle and this presenter only
+            // configures or drops the swapchain on the owning UI thread.
+            let status = unsafe {
+                self.surface
+                    .as_hal::<wgpu::hal::api::Dx12>()
+                    .and_then(|surface| surface.waitable_handle())
+                    .map(|handle| WaitForSingleObject(handle, timeout_ms))
+            };
+            match status {
+                Some(WAIT_OBJECT_0) | None => (),
+                Some(WAIT_TIMEOUT) => return Ok(()),
+                Some(_) => {
+                    self.resize = true;
+                    return Ok(());
+                }
+            }
         }
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame) => frame,

@@ -240,13 +240,10 @@ Node previews use the same GPU context. They are encoded after the corresponding
 and clipped to visible patch regions. Scrolling, overlap masks, and panel bounds belong
 to UI layout, not domain graph coordinates.
 
-Native desktop presentations are validated on macOS. The Windows presentation PAL is
-implemented, with native tests for clipping, input routing, shared GPU presentation,
-DPI changes, and parent-window teardown. Executing those tests requires a Windows
-desktop and DX12 GPU; Windows runtime validation remains outstanding in this macOS
-workspace. Linux native presentation is not implemented. Windows movie playback uses
-the separate Media Foundation / DXVA adapter described below; its GPU runtime validation
-and performance measurements also require a Windows machine.
+Native desktop presentations are validated on macOS and on Windows with a GTX 1080.
+The Windows tests cover clipping, input routing, shared GPU presentation, DPI changes,
+recovery from an abandoned frame, and parent-window teardown. Linux native presentation
+is not implemented. Windows movie playback uses the Media Foundation / DXVA adapter below.
 
 ## GPU execution and cache-aware data flow
 
@@ -313,8 +310,8 @@ permanent drift. Program presentation targets the configured rate while routine 
 notifications are capped at 30 Hz. Input handlers still request immediate UI updates.
 Editor and node-preview swapchains use non-vsync presentation so each small preview cannot
 independently gate the frame loop on a display refresh. Independent output windows retain
-the user's output-vsync setting. Rendering still runs on the GPUI thread: this reduces avoidable jitter but does not provide
-an independent realtime rendering thread or protect against all expensive UI work.
+the user's output-vsync setting. On Windows, non-vsync viewports skip presentation when
+the DXGI frame-latency signal is not ready. Rendering still runs on the GPUI thread.
 
 macOS injects `MetalMovieFactory` in `main.rs`. A persistent hardware VideoToolbox session
 decodes compressed AVFoundation samples into IOSurface-backed NV12 frames. CoreVideo maps
@@ -358,8 +355,9 @@ The D3D11 device uses the rendering D3D12 device's exact adapter LUID. NV12/P010
 must expose GPU textures bound as decoder targets; software-upload surfaces are rejected.
 A persistent D3D11 video processor scales and converts those images into three shared
 BGRA textures. Shared producer/consumer fences order D3D11 writes, D3D12 copies, and reuse;
-the imported surfaces return to COMMON state after copying. A separate persistent wgpu
-input keeps bindings and the last completed frame stable while decoding catches up.
+the imported surfaces return to COMMON state after copying. A single D3D12 submission
+copies all updated movies before the render graph runs. A persistent wgpu input per
+source keeps bindings and the last completed frame stable while decoding catches up.
 
 Requests use a single coalescing wakeup and the latest target. Ordinary forward playback
 reuses the reader and its current timestamped sample; backward or distant requests seek
@@ -374,9 +372,8 @@ cached for the decoder's texture pool, with bounded retention across pool replac
 The Windows adapter does not perform CPU pixel readback/upload during playback. Its
 output is 8-bit SDR and currently requires progressive, supported Media Foundation
 codecs; HDR tone mapping and automatic compatibility transcoding are not implemented.
-Native Windows pixel and synchronization tests are provided but have not run in this
-macOS workspace. Cross-compilation is evidence of type/build compatibility, not
-playback speed or driver interoperability.
+Native pixel and synchronization tests passed on Windows with a GTX 1080 using two
+H.264 sources, including repeated seeks and a burst of superseded requests.
 
 Audio is optional and requires a route to an audio sink. Cue/headphone output is for the
 VJ to monitor material while matching the DJ's independent audio. The audio callback does

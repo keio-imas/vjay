@@ -206,24 +206,41 @@ fn run() -> PortResult<()> {
                 #[cfg(any(target_os = "macos", target_os = "windows"))]
                 {
                     use std::{cell::RefCell, rc::Rc};
-                    #[cfg(target_os = "macos")]
-                    use vjay_infrastructure::macos::{
-                        MacGpuPreview as NativeGpuPreview,
-                        MacNodePreviewFactory as NativeNodePreviewFactory,
-                        MacOutputFactory as NativeOutputFactory,
-                    };
-                    #[cfg(target_os = "windows")]
-                    use vjay_infrastructure::windows::{
-                        WindowsGpuPreview as NativeGpuPreview,
-                        WindowsNodePreviewFactory as NativeNodePreviewFactory,
-                        WindowsOutputFactory as NativeOutputFactory,
-                    };
                     use vjay_infrastructure::{
                         gpu::presentation_group::PresentationGroup, platform::SharedPreview,
                     };
-                    let group = Rc::new(RefCell::new(PresentationGroup::new(Box::new(
-                        NativeGpuPreview::attach(window)?,
-                    ))));
+                    #[cfg(target_os = "macos")]
+                    let (primary, node_factory, output_factory) = {
+                        use vjay_infrastructure::macos::{
+                            MacGpuPreview, MacNodePreviewFactory, MacOutputFactory,
+                        };
+                        (
+                            MacGpuPreview::attach(window)?,
+                            MacNodePreviewFactory::new,
+                            MacOutputFactory::new,
+                        )
+                    };
+                    #[cfg(target_os = "windows")]
+                    let (primary, node_factory, output_factory) = {
+                        use vjay_infrastructure::windows::{
+                            WindowsGpuPreview, WindowsNodePreviewFactory, WindowsOutputFactory,
+                            WindowsPreviewOptions,
+                        };
+                        let options = WindowsPreviewOptions {
+                            skip_busy_previews: true,
+                        };
+                        (
+                            WindowsGpuPreview::attach_with_options(window, options)?,
+                            move |window, context| {
+                                WindowsNodePreviewFactory::new(window, context)
+                                    .map(|factory| factory.with_options(options))
+                            },
+                            move |context, group| {
+                                WindowsOutputFactory::new(context, group).with_options(options)
+                            },
+                        )
+                    };
+                    let group = Rc::new(RefCell::new(PresentationGroup::new(Box::new(primary))));
                     let preview: SharedPreview = group.clone();
                     let runtime = WgpuRuntimeFactory::for_desktop(
                         preview.clone(),
@@ -251,11 +268,8 @@ fn run() -> PortResult<()> {
                     ));
                     group
                         .borrow_mut()
-                        .set_node_factory(Box::new(NativeNodePreviewFactory::new(
-                            window,
-                            runtime.context(),
-                        )?));
-                    let outputs = Rc::new(NativeOutputFactory::new(runtime.context(), group));
+                        .set_node_factory(Box::new(node_factory(window, runtime.context())?));
+                    let outputs = Rc::new(output_factory(runtime.context(), group));
                     Ok(DesktopRuntime {
                         factory: Box::new(runtime),
                         preview: Some(preview),

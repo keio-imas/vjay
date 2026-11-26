@@ -103,10 +103,12 @@ fn gpu_video_seek_two_sources_without_cpu_pixels() {
     for (time_a, time_b) in [(0.0, 1.5), (1.5, 0.0), (0.0, 1.5), (1.8, 0.2)] {
         a.request_frame(time_a).unwrap();
         b.request_frame(time_b).unwrap();
+        runtime.begin_frame().unwrap();
         a.frame_at(time_a, FrameDelivery::Exact, &context.queue)
             .unwrap();
         b.frame_at(time_b, FrameDelivery::Exact, &context.queue)
             .unwrap();
+        runtime.end_frame().unwrap();
         for (source, time) in [(&a, time_a), (&b, time_b)] {
             let p = pixel(&context.device, &context.queue, source.texture(), 100);
             assert!(

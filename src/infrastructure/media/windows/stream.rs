@@ -1,10 +1,12 @@
 use super::{
     reader::TICKS,
-    transfer::{self, Recycled},
+    transfer::{self, Recycled, TransferBatch},
     worker::{Completion, Mailbox, Worker},
 };
 use std::{
+    cell::RefCell,
     path::PathBuf,
+    rc::Rc,
     sync::{
         Arc, Condvar, Mutex,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -20,7 +22,7 @@ use vjay_application::{
 
 pub(super) struct NativeMovie {
     texture: wgpu::Texture,
-    device: wgpu::Device,
+    transfers: Rc<RefCell<TransferBatch>>,
     requests: Option<SyncSender<()>>,
     recycled: SyncSender<Recycled>,
     wanted: Arc<AtomicU64>,
@@ -35,6 +37,7 @@ impl NativeMovie {
     pub fn open(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
+        transfers: Rc<RefCell<TransferBatch>>,
         path: PathBuf,
         extent: Extent,
     ) -> PortResult<Self> {
@@ -61,7 +64,7 @@ impl NativeMovie {
         requests.send(()).map_err(|e| e.to_string())?;
         Ok(Self {
             texture,
-            device: device.clone(),
+            transfers,
             requests: Some(requests),
             recycled,
             wanted,
@@ -132,7 +135,7 @@ impl crate::gpu::GpuVideoDecoder for NativeMovie {
         &mut self,
         seconds: f64,
         delivery: FrameDelivery,
-        queue: &wgpu::Queue,
+        _queue: &wgpu::Queue,
     ) -> PortResult<bool> {
         self.request_frame(seconds)?;
         let target = self.wanted.load(Ordering::Acquire);
@@ -165,23 +168,17 @@ impl crate::gpu::GpuVideoDecoder for NativeMovie {
         let Some(frame) = frame else {
             return Ok(false);
         };
-        let copied = self.delivered != Some(frame.key);
-        if copied {
-            frame.copy_to(&self.device, queue, &self.texture)?;
-        }
         let key = frame.key;
-        self.recycled
-            .try_send(Recycled {
-                slot: frame.slot,
-                produced: frame.value,
-                consumed: if copied { frame.value } else { 0 },
-            })
-            .map_err(|e| e.to_string())?;
-        if copied {
-            self.delivered = Some(key);
-            self.frames += 1;
+        if self.delivered == Some(key) {
+            frame.recycle(false, &self.recycled);
+            return Ok(false);
         }
-        Ok(copied)
+        self.transfers
+            .borrow_mut()
+            .copy(frame, &self.texture, &self.recycled)?;
+        self.delivered = Some(key);
+        self.frames += 1;
+        Ok(true)
     }
 }
 impl Drop for NativeMovie {

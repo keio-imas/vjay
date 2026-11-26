@@ -2,7 +2,9 @@
 use std::{path::PathBuf, sync::Arc, time::Instant};
 use vjay_application::{ports::*, session::Session};
 use vjay_infrastructure::{
-    gpu::WgpuRuntimeFactory, media::FfmpegDecoderFactory, storage::JsonProjectStore,
+    gpu::{GpuVideoFactory, WgpuRuntimeFactory},
+    media::FfmpegDecoderFactory,
+    storage::JsonProjectStore,
 };
 
 fn main() -> Result<(), String> {
@@ -29,10 +31,6 @@ fn main() -> Result<(), String> {
     if !matches!(mode, "legacy" | "native") {
         return Err("Mode must be legacy or native".into());
     }
-    #[cfg(not(target_os = "macos"))]
-    if mode == "native" {
-        return Err("The native movie adapter requires macOS Metal".into());
-    }
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("sample/anime-club.vjay.json");
     let store = JsonProjectStore::new(path);
     let mut doc = store.load()?;
@@ -47,24 +45,9 @@ fn main() -> Result<(), String> {
             .id
     };
     let (a, b) = (find("A / VIDEO"), find("B / VIDEO"));
-    let runtime = WgpuRuntimeFactory::headless(
-        Arc::new(FfmpegDecoderFactory::videotoolbox(
-            "ffmpeg".into(),
-            "ffprobe".into(),
-        )),
-        vjay_infrastructure::gpu::programs::builtin_programs(),
-    )?;
-    #[cfg(target_os = "macos")]
-    let runtime = if mode == "native" {
-        runtime.with_gpu_video(Some(Arc::new(
-            vjay_infrastructure::media::macos::MetalMovieFactory::new(
-                "ffmpeg".into(),
-                "ffprobe".into(),
-            ),
-        )))
-    } else {
-        runtime
-    };
+    let runtime = playback_runtime(mode)?;
+    let adapter = runtime.context().adapter.get_info();
+    eprintln!("{} / {:?}", adapter.name, adapter.backend);
     let mut session = Session::new(
         Box::new(vjay_domain::builtins::registry()),
         &runtime,
@@ -134,4 +117,46 @@ fn main() -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+fn playback_runtime(mode: &str) -> Result<WgpuRuntimeFactory, String> {
+    let (media, backends, native): (_, _, Option<Arc<dyn GpuVideoFactory>>);
+    #[cfg(target_os = "macos")]
+    {
+        use vjay_infrastructure::media::macos::MetalMovieFactory;
+        (media, backends, native) = (
+            FfmpegDecoderFactory::videotoolbox("ffmpeg".into(), "ffprobe".into()),
+            wgpu::Backends::all(),
+            Some(
+                Arc::new(MetalMovieFactory::new("ffmpeg".into(), "ffprobe".into()))
+                    as Arc<dyn GpuVideoFactory>,
+            ),
+        );
+    }
+    #[cfg(windows)]
+    {
+        use vjay_infrastructure::media::windows::Dx12MovieFactory;
+        (media, backends, native) = (
+            FfmpegDecoderFactory::new("ffmpeg".into(), "ffprobe".into()),
+            wgpu::Backends::DX12,
+            Some(Arc::new(Dx12MovieFactory) as Arc<dyn GpuVideoFactory>),
+        );
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
+    {
+        (media, backends, native) = (
+            FfmpegDecoderFactory::new("ffmpeg".into(), "ffprobe".into()),
+            wgpu::Backends::all(),
+            None,
+        );
+    }
+    if mode == "native" && native.is_none() {
+        return Err("The native movie adapter requires macOS Metal or Windows DX12".into());
+    }
+    let runtime = WgpuRuntimeFactory::headless_with_backends(
+        Arc::new(media),
+        vjay_infrastructure::gpu::programs::builtin_programs(),
+        backends,
+    )?;
+    Ok(runtime.with_gpu_video(if mode == "native" { native } else { None }))
 }

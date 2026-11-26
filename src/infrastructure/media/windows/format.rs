@@ -15,13 +15,6 @@ pub(super) fn configure(
     extent: Extent,
 ) -> Result<()> {
     unsafe {
-        let interlace = media.GetUINT32(&MF_MT_INTERLACE_MODE).unwrap_or(2);
-        if interlace != 0 && interlace != 2 {
-            return Err(Error::new(
-                MF_E_INVALIDMEDIATYPE,
-                "Windows GPU video currently requires progressive frames",
-            ));
-        }
         let transfer = media.GetUINT32(&MF_MT_TRANSFER_FUNCTION).unwrap_or(0);
         if [
             MFVideoTransFunc_2084.0 as u32,

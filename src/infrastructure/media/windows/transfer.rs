@@ -1,5 +1,5 @@
 use super::device::{Device, Fence, SharedHandle};
-use std::sync::Arc;
+use std::sync::{Arc, mpsc::SyncSender};
 use vjay_application::ports::{Extent, PortResult};
 use windows::{
     Win32::Graphics::{
@@ -103,23 +103,7 @@ pub(super) struct Recycled {
 }
 
 impl Published {
-    pub fn copy_to(
-        &self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        output: &wgpu::Texture,
-    ) -> PortResult<()> {
-        // Short-lived HAL guards must be released before calling queue.submit.
-        // wgpu uses this same native queue, so its copy sits between Wait/Signal.
-        {
-            let raw =
-                unsafe { queue.as_hal::<wgpu::hal::api::Dx12>() }.ok_or("Expected DX12 queue")?;
-            unsafe { raw.as_raw().Wait(&self.slot.producer.d12, self.value) }
-                .map_err(|e| e.to_string())?;
-        }
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("GPU movie transfer"),
-        });
+    fn encode_copy(&self, encoder: &mut wgpu::CommandEncoder, output: &wgpu::Texture) {
         encoder.copy_texture_to_texture(
             self.slot.imported.as_image_copy(),
             output.as_image_copy(),
@@ -134,10 +118,97 @@ impl Published {
                 state: wgpu::TextureUses::PRESENT,
             }),
         );
-        queue.submit([encoder.finish()]);
-        let raw = unsafe { queue.as_hal::<wgpu::hal::api::Dx12>() }.ok_or("Expected DX12 queue")?;
-        unsafe { raw.as_raw().Signal(&self.slot.consumer.d12, self.value) }
-            .map_err(|e| e.to_string())
+    }
+
+    pub fn recycle(self, copied: bool, sender: &SyncSender<Recycled>) {
+        // There are only three slots and the recycle channel can hold all of
+        // them. A disconnected receiver no longer needs its slot back.
+        let _ = sender.try_send(Recycled {
+            slot: self.slot,
+            produced: self.value,
+            consumed: if copied { self.value } else { 0 },
+        });
+    }
+}
+
+struct Copy {
+    frame: Published,
+    output: wgpu::Texture,
+    recycled: SyncSender<Recycled>,
+}
+
+pub(super) struct TransferBatch {
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    active: bool,
+    copies: Vec<Copy>,
+}
+
+impl TransferBatch {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+        Self {
+            device: device.clone(),
+            queue: queue.clone(),
+            active: false,
+            copies: Vec::new(),
+        }
+    }
+
+    pub fn begin_frame(&mut self) {
+        debug_assert!(!self.active);
+        self.active = true;
+    }
+
+    pub fn end_frame(&mut self) -> PortResult<()> {
+        self.active = false;
+        self.submit()
+    }
+
+    pub fn copy(
+        &mut self,
+        frame: Published,
+        output: &wgpu::Texture,
+        recycled: &SyncSender<Recycled>,
+    ) -> PortResult<()> {
+        self.copies.push(Copy {
+            frame,
+            output: output.clone(),
+            recycled: recycled.clone(),
+        });
+        if self.active { Ok(()) } else { self.submit() }
+    }
+
+    fn submit(&mut self) -> PortResult<()> {
+        if self.copies.is_empty() {
+            return Ok(());
+        }
+        let mut copies = self.copies.drain(..);
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("GPU movie transfers"),
+            });
+        for copy in copies.as_slice() {
+            copy.frame.encode_copy(&mut encoder, &copy.output);
+        }
+        // The render thread owns submissions to this queue. Stage all waits and
+        // signals for this submit and release the HAL guard before submitting.
+        {
+            // SAFETY: Each producer fence is already queued by D3D11. The
+            // consumer fences are signalled after the shared textures return to COMMON.
+            let raw = unsafe { self.queue.as_hal::<wgpu::hal::api::Dx12>() }
+                .ok_or("Expected DX12 queue")?;
+            for copy in copies.as_slice() {
+                let frame = &copy.frame;
+                raw.add_wait_fence(frame.slot.producer.d12.clone(), frame.value);
+                raw.add_signal_fence(frame.slot.consumer.d12.clone(), frame.value);
+            }
+        }
+        self.queue.submit([encoder.finish()]);
+        for copy in &mut copies {
+            copy.frame.recycle(true, &copy.recycled);
+        }
+        Ok(())
     }
 }
 

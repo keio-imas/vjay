@@ -65,7 +65,15 @@ impl Reader {
                 attributes.SetUINT32(&MF_READWRITE_D3D_OPTIONAL, 0)?;
                 // Software video processing would download the decoded GPU image.
                 attributes.SetUINT32(&MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, 0)?;
-                let source = MFCreateSourceReaderFromURL(PCWSTR(wide.as_ptr()), &attributes)?;
+                // Open the canonical path as a file. The URL resolver can
+                // interpret the extended Win32 prefix as a network location.
+                let file = MFCreateFile(
+                    MF_ACCESSMODE_READ,
+                    MF_OPENMODE_FAIL_IF_NOT_EXIST,
+                    MF_FILEFLAGS_NONE,
+                    PCWSTR(wide.as_ptr()),
+                )?;
+                let source = MFCreateSourceReaderFromByteStream(&file, &attributes)?;
                 source.SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS.0 as u32, false)?;
                 source.SetStreamSelection(VIDEO, true)?;
                 let native = source.GetNativeMediaType(VIDEO, 0)?;
@@ -174,6 +182,24 @@ impl Reader {
                 self.media_type = changed;
             }
             if let Some(sample) = sample {
+                // A decoder can advertise mixed interlacing even for a stream
+                // of progressive frames. Prefer the decoded picture's flag.
+                let progressive = unsafe {
+                    sample.GetUINT32(&MFSampleExtension_Interlaced).map_or_else(
+                        |_| {
+                            let mode = self
+                                .media_type
+                                .GetUINT32(&MF_MT_INTERLACE_MODE)
+                                .unwrap_or(MFVideoInterlace_Unknown.0 as u32);
+                            mode == MFVideoInterlace_Unknown.0 as u32
+                                || mode == MFVideoInterlace_Progressive.0 as u32
+                        },
+                        |interlaced| interlaced == 0,
+                    )
+                };
+                if !progressive {
+                    return Err("Windows GPU video currently requires progressive frames".into());
+                }
                 let decoded = (|| -> windows::core::Result<Sample> {
                     unsafe {
                         let buffer: IMFDXGIBuffer = sample.GetBufferByIndex(0)?.cast()?;

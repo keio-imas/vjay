@@ -122,9 +122,10 @@ fn surface_creation_supplies_display_for_shared_instances_without_a_gpu_device()
     descriptor.backends = wgpu::Backends::DX12;
     assert!(descriptor.display.is_none());
     let instance = wgpu::Instance::new(descriptor);
-    let first = WindowsGpuPreview::attach_host(host.0, instance.clone())
+    let options = WindowsPreviewOptions::default();
+    let first = WindowsGpuPreview::attach_host(host.0, instance.clone(), options)
         .expect("A Win32 surface must supply its display handle when the instance has none");
-    let second = WindowsGpuPreview::attach_host(host.0, instance)
+    let second = WindowsGpuPreview::attach_host(host.0, instance, options)
         .expect("Additional viewports must work with the same instance and Windows display");
     assert!(first.window.state.gpu.borrow().is_some());
     assert!(second.window.state.gpu.borrow().is_some());
@@ -137,11 +138,12 @@ fn surface_creation_supplies_display_for_shared_instances_without_a_gpu_device()
 #[ignore = "requires a Windows desktop and DX12 GPU; exercises two swapchains, DPI changes and teardown"]
 fn dx12_previews_share_a_queue_and_release_the_swapchain_before_parent_destruction() {
     let mut host = Host::new();
-    let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
-    descriptor.backends = wgpu::Backends::DX12;
-    let instance = wgpu::Instance::new(descriptor);
-    let mut first = WindowsGpuPreview::attach_host(host.0, instance.clone()).unwrap();
-    let mut second = WindowsGpuPreview::attach_host(host.0, instance).unwrap();
+    let options = WindowsPreviewOptions {
+        skip_busy_previews: true,
+    };
+    let instance = preview_instance(options);
+    let mut first = WindowsGpuPreview::attach_host(host.0, instance.clone(), options).unwrap();
+    let mut second = WindowsGpuPreview::attach_host(host.0, instance, options).unwrap();
     let adapter = first.request_adapter().unwrap();
     let (device, queue) = pollster::block_on(adapter.request_device(&Default::default())).unwrap();
     let image = device.create_texture(&wgpu::TextureDescriptor {
@@ -177,6 +179,17 @@ fn dx12_previews_share_a_queue_and_release_the_swapchain_before_parent_destructi
     unsafe {
         let _ = ShowWindow(host.0, SW_SHOWNOACTIVATE);
     }
+    let has_frame = |preview: &WindowsGpuPreview| {
+        preview
+            .window
+            .state
+            .gpu
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .has_pending_frame()
+    };
+    second.set_vsync(false);
     for scale in [1.0, 1.5, 2.0, 1.0] {
         let mut a = bounds(scale);
         a.width = 100.0;
@@ -185,31 +198,33 @@ fn dx12_previews_share_a_queue_and_release_the_swapchain_before_parent_destructi
         second.set_bounds(a);
         let mut encoder = device.create_command_encoder(&Default::default());
         first.encode(&device, &mut encoder).unwrap();
-        second.encode(&device, &mut encoder).unwrap();
-        assert!(
-            first
-                .window
-                .state
-                .gpu
-                .borrow()
-                .as_ref()
-                .unwrap()
-                .has_pending_frame()
-        );
-        assert!(
-            second
-                .window
-                .state
-                .gpu
-                .borrow()
-                .as_ref()
-                .unwrap()
-                .has_pending_frame()
-        );
+        assert!(has_frame(&first));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
+        loop {
+            second.encode(&device, &mut encoder).unwrap();
+            if has_frame(&second) {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "preview never became ready"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
         queue.submit([encoder.finish()]);
         first.present(&queue);
         second.present(&queue);
     }
+    // Simulate a graph error after acquiring the first swapchain image.
+    let mut abandoned = device.create_command_encoder(&Default::default());
+    first.encode(&device, &mut abandoned).unwrap();
+    assert!(has_frame(&first));
+    drop(abandoned);
+    let mut recovered = device.create_command_encoder(&Default::default());
+    first.encode(&device, &mut recovered).unwrap();
+    assert!(has_frame(&first));
+    queue.submit([recovered.finish()]);
+    first.present(&queue);
     first.set_hidden(true);
     assert!(!first.window.drawable());
     first.set_hidden(false);

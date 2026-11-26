@@ -17,25 +17,45 @@ pub struct WindowsGpuPreview {
     instance: wgpu::Instance,
     window: ChildWindow,
     error: Option<String>,
+    manual_latency_wait: bool,
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct WindowsPreviewOptions {
+    pub skip_busy_previews: bool,
 }
 
 impl WindowsGpuPreview {
     pub fn attach(window: &gpui::Window) -> PortResult<Self> {
-        let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
-        descriptor.backends = wgpu::Backends::DX12;
-        Self::attach_with_instance(window, wgpu::Instance::new(descriptor))
+        Self::attach_with_options(window, WindowsPreviewOptions::default())
+    }
+
+    pub fn attach_with_options(
+        window: &gpui::Window,
+        options: WindowsPreviewOptions,
+    ) -> PortResult<Self> {
+        Self::attach_host(
+            window::host_handle(window)?,
+            preview_instance(options),
+            options,
+        )
     }
 
     pub fn attach_with_instance(
         window: &gpui::Window,
         instance: wgpu::Instance,
     ) -> PortResult<Self> {
-        Self::attach_host(window::host_handle(window)?, instance)
+        Self::attach_host(
+            window::host_handle(window)?,
+            instance,
+            WindowsPreviewOptions::default(),
+        )
     }
 
     fn attach_host(
         host: ::windows::Win32::Foundation::HWND,
         instance: wgpu::Instance,
+        options: WindowsPreviewOptions,
     ) -> PortResult<Self> {
         let window = ChildWindow::new(host)?;
         let handle = NonZeroIsize::new(window.hwnd().0 as isize).ok_or("Missing preview HWND")?;
@@ -55,8 +75,19 @@ impl WindowsGpuPreview {
             instance,
             window,
             error: None,
+            manual_latency_wait: options.skip_busy_previews,
         })
     }
+}
+
+fn preview_instance(options: WindowsPreviewOptions) -> wgpu::Instance {
+    let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
+    descriptor.backends = wgpu::Backends::DX12;
+    if options.skip_busy_previews {
+        descriptor.backend_options.dx12.latency_waitable_object =
+            wgpu::Dx12UseFrameLatencyWaitableObject::DontWait;
+    }
+    wgpu::Instance::new(descriptor)
 }
 
 impl GpuPresentation for WindowsGpuPreview {
@@ -136,14 +167,15 @@ impl GpuPresentation for WindowsGpuPreview {
         device: &wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
     ) -> PortResult<()> {
-        if !self.window.drawable() {
-            return Ok(());
-        }
-        if let Some(error) = &self.error {
+        let drawable = self.window.drawable();
+        if drawable && let Some(error) = &self.error {
             return Err(error.clone());
         }
         if let Some(gpu) = self.window.state.gpu.borrow_mut().as_mut() {
-            gpu.encode(device, encoder)?;
+            gpu.discard_unpresented();
+            if drawable {
+                gpu.encode(device, encoder, self.manual_latency_wait)?;
+            }
         }
         Ok(())
     }

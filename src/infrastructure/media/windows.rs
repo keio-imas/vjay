@@ -10,7 +10,8 @@ mod transfer;
 mod worker;
 
 use crate::gpu::{GpuVideoDecoder, GpuVideoFactory, GpuVideoRuntime};
-use std::path::Path;
+use std::{cell::RefCell, path::Path, rc::Rc};
+use transfer::TransferBatch;
 use vjay_application::ports::{Extent, PortResult};
 
 pub struct Dx12MovieFactory;
@@ -18,6 +19,7 @@ pub struct Dx12MovieFactory;
 struct Runtime {
     device: wgpu::Device,
     queue: wgpu::Queue,
+    transfers: Rc<RefCell<TransferBatch>>,
 }
 
 impl GpuVideoFactory for Dx12MovieFactory {
@@ -32,13 +34,29 @@ impl GpuVideoFactory for Dx12MovieFactory {
         Ok(Box::new(Runtime {
             device: device.clone(),
             queue: queue.clone(),
+            transfers: Rc::new(RefCell::new(TransferBatch::new(device, queue))),
         }))
     }
 }
 
 impl GpuVideoRuntime for Runtime {
+    fn begin_frame(&mut self) -> PortResult<()> {
+        self.transfers.borrow_mut().begin_frame();
+        Ok(())
+    }
+
+    fn end_frame(&mut self) -> PortResult<()> {
+        self.transfers.borrow_mut().end_frame()
+    }
+
     fn open(&mut self, path: &Path, extent: Extent) -> PortResult<Box<dyn GpuVideoDecoder>> {
-        stream::NativeMovie::open(&self.device, &self.queue, path.to_owned(), extent)
-            .map(|movie| Box::new(movie) as Box<dyn GpuVideoDecoder>)
+        stream::NativeMovie::open(
+            &self.device,
+            &self.queue,
+            self.transfers.clone(),
+            path.to_owned(),
+            extent,
+        )
+        .map(|movie| Box::new(movie) as Box<dyn GpuVideoDecoder>)
     }
 }

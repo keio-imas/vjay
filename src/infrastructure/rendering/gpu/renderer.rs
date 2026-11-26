@@ -171,8 +171,8 @@ impl RenderBackend for WgpuRenderer {
             .video
             .as_mut()
             .map_or(Ok(()), |video| video.update(&self.queue, plan, frame));
-        // Always commit encoded conversions, even when a different source failed:
-        // any wgpu shared-event waits already registered must still be signalled.
+        // Commit accepted GPU video work even if another source failed. That
+        // work can already own transfer slots or have registered fence waits.
         let batch_result = self
             .native_video
             .as_mut()
@@ -202,7 +202,7 @@ impl RenderBackend for WgpuRenderer {
             resources.staging[offset + 16..offset + 16 + parameters.len() * 4]
                 .copy_from_slice(bytemuck::cast_slice(parameters));
         }
-        // One contiguous upload, one command encoder, one submission per frame.
+        // One contiguous upload and one command submission for the graph.
         self.queue
             .write_buffer(&resources.uniforms, 0, &resources.staging);
         let mut encoder = self
