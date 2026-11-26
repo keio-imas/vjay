@@ -192,11 +192,11 @@ impl VideoDecoder for FfmpegStream {
         if self.failed() {
             None
         } else if !self.ready() {
-            Some("Preparing GPU video…")
+            Some("Preparing video…")
         } else if self.hardware {
             Some("VideoToolbox · GPU decode / scale")
         } else {
-            None
+            Some("FFmpeg · CPU decode / upload")
         }
     }
     fn frame_at(

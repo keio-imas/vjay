@@ -28,5 +28,6 @@ jobs:
       - run: cargo build --release --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test -p vjay-infrastructure --lib desktop::windows::tests::dpi_coordinates --locked
+      - run: cargo test -p vjay-infrastructure --lib media::windows::format::tests --locked
       - run: cargo test -p vjay-infrastructure --lib desktop::windows::tests::child_clipping --locked -- --ignored --test-threads=1
       - run: cargo test -p vjay-infrastructure --lib desktop::windows::tests::surface_creation --locked -- --ignored --test-threads=1

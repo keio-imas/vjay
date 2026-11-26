@@ -146,7 +146,11 @@ fn run() -> PortResult<()> {
             args.ffprobe.clone(),
         ),
     ));
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
+    let native_video: Option<Arc<dyn vjay_infrastructure::gpu::GpuVideoFactory>> = Some(Arc::new(
+        vjay_infrastructure::media::windows::Dx12MovieFactory,
+    ));
+    #[cfg(not(any(target_os = "macos", windows)))]
     let native_video: Option<Arc<dyn vjay_infrastructure::gpu::GpuVideoFactory>> = None;
     #[cfg(target_os = "macos")]
     let media: Arc<dyn VideoDecoderFactory> = Arc::new(FfmpegDecoderFactory::videotoolbox(

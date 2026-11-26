@@ -244,8 +244,9 @@ Native desktop presentations are validated on macOS. The Windows presentation PA
 implemented, with native tests for clipping, input routing, shared GPU presentation,
 DPI changes, and parent-window teardown. Executing those tests requires a Windows
 desktop and DX12 GPU; Windows runtime validation remains outstanding in this macOS
-workspace. Linux native presentation and Windows native GPU movie decoding are not
-implemented. The portable Windows movie adapter uses FFmpeg CPU decoding and GPU upload.
+workspace. Linux native presentation is not implemented. Windows movie playback uses
+the separate Media Foundation / DXVA adapter described below; its GPU runtime validation
+and performance measurements also require a Windows machine.
 
 ## GPU execution and cache-aware data flow
 
@@ -282,7 +283,8 @@ rerasterizing text merely to move or scale it.
 | Compiled image texture budget | 512 MiB |
 | GPU pass interface | 8 image inputs and 64 float uniforms |
 | Concurrent media sources | 8 video sources; 8 audio sources |
-| Native movie cache | 4 requested frames, max(64 MiB, one decoded frame); 4 lookahead frames/64 MiB; 2 conversions in flight |
+| macOS movie cache | 4 requested frames, max(64 MiB, one decoded frame); 4 lookahead frames/64 MiB; 2 conversions in flight |
+| Windows movie transfer | 3 shared BGRA surfaces and 1 persistent input per source, plus the system decoder's surface pool |
 | Shared video inputs | 8 |
 | NDI OUT transfer buffers | 512 MiB total |
 | Audio PCM cache | 8 MiB per source |
@@ -346,8 +348,35 @@ Unsupported source formats can be prepared once into a hardware-encoded ProRes c
 Initial decoding of such sources uses the CPU. Native playback requires hardware decoding;
 there is no silent software playback fallback. The existing FFmpeg RGBA adapter remains
 available for other platforms, tests and comparative benchmarks, and still crosses CPU
-memory. Native Metal movie input is currently macOS-only, outputs 8-bit SDR, and does not
+memory. Native Metal movie input outputs 8-bit SDR and does not
 implement HDR tone mapping or a complete color-managed workflow.
+
+Windows injects `Dx12MovieFactory` through the same rendering PAL. A COM/MTA worker per
+source opens a persistent Media Foundation Source Reader with a DXGI device manager,
+DXVA enabled, hardware transforms enabled, and optional system-memory surfaces disabled.
+The D3D11 device uses the rendering D3D12 device's exact adapter LUID. NV12/P010 samples
+must expose GPU textures bound as decoder targets; software-upload surfaces are rejected.
+A persistent D3D11 video processor scales and converts those images into three shared
+BGRA textures. Shared producer/consumer fences order D3D11 writes, D3D12 copies, and reuse;
+the imported surfaces return to COMMON state after copying. A separate persistent wgpu
+input keeps bindings and the last completed frame stable while decoding catches up.
+
+Requests use a single coalescing wakeup and the latest target. Ordinary forward playback
+reuses the reader and its current timestamped sample; backward or distant requests seek
+within that reader. Live delivery consumes the latest completed GPU frame without
+waiting for decode or I/O. Exact delivery may wait on a condition variable. Only the
+worker waits for native conversion completion before releasing retained MFT samples and
+entering a potentially blocking read; this avoids exhausting the decoder's surface pool.
+GPU-completion checks bound reuse and in-flight transfers to three slots. Deleting a
+source cancels requests and reaps its worker in the background. Native descriptors are
+cached for the decoder's texture pool, with bounded retention across pool replacement.
+
+The Windows adapter does not perform CPU pixel readback/upload during playback. Its
+output is 8-bit SDR and currently requires progressive, supported Media Foundation
+codecs; HDR tone mapping and automatic compatibility transcoding are not implemented.
+Native Windows pixel and synchronization tests are provided but have not run in this
+macOS workspace. Cross-compilation is evidence of type/build compatibility, not
+playback speed or driver interoperability.
 
 Audio is optional and requires a route to an audio sink. Cue/headphone output is for the
 VJ to monitor material while matching the DJ's independent audio. The audio callback does

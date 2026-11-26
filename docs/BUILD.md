@@ -32,7 +32,7 @@ FFmpeg and FFprobe are external runtime tools. Put both on `PATH`, or select the
 cargo run --release -- --ffmpeg /path/to/ffmpeg --ffprobe /path/to/ffprobe
 ```
 
-Video and audio codec support depends on the installed FFmpeg build. On macOS, playback
+Audio and portable video codec support depends on the installed FFmpeg build. On macOS, playback
 uses native VideoToolbox decoding and Metal conversion. The comparative/portable FFmpeg
 adapter additionally requires `scale_vt` for its hardware mode. Unsupported source formats may need the
 hardware-encoded compatibility cache described in the [user guide](USER_GUIDE.md#video-and-audio).
@@ -79,14 +79,16 @@ cargo build --release --locked
 Use the actual installation directory if it differs. `no-asm` in OpenSSL's Configure
 arguments means NASM is not required for that build. This resolves the reported missing
 Perl prerequisite; it is not confirmation of a complete Windows build or functioning
-native VJ output. Windows has a DX12 presentation PAL; its native GPU movie decoder
-and camera input remain unimplemented. The Windows movie path uses FFmpeg CPU decoding
-and GPU upload. Native Windows builds and presentation tests cannot run in this macOS
-development environment.
+native VJ output. Windows has DX12 presentation and a Media Foundation / DXVA movie
+adapter. It requires Windows Media Foundation, a supported GPU codec/profile and current
+drivers. Windows N editions need the Media Feature Pack; HEVC may need Microsoft's HEVC
+extension. Camera input remains macOS-only. Native Windows builds and GPU tests cannot
+run in this macOS development environment.
 The `windows-build` CI job builds the locked Release binary with the MSVC toolchain,
 runs strict Clippy, and checks viewport coordinates, Win32 clipping/input/lifetime
 behavior, and DX12 surface creation without requesting a GPU device. It does not
-test swapchain presentation or attached devices.
+test swapchain presentation or attached devices. A Media Foundation metadata test also
+checks that display apertures exclude aligned decoder padding without requiring a GPU.
 
 ### GPUI: `Failed to find fxc.exe`
 
@@ -174,6 +176,49 @@ information is unavailable; the linker still produces the executable. See
 [Microsoft's LNK4099 reference](https://learn.microsoft.com/en-us/cpp/error-messages/tool-errors/linker-tools-warning-lnk4099?view=msvc-170).
 Rendering failures appear in the application status or as runtime errors after startup.
 
+### Windows GPU video playback
+
+`main.rs` selects `Dx12MovieFactory` for Windows. Movie frames are decoded into D3D11
+NV12/P010 decoder surfaces on the same GPU as the wgpu D3D12 renderer. A persistent video
+processor scales and converts them on the GPU. Three shared BGRA transfer textures and
+shared fences order the native work and GPU copies into a persistent render input.
+Playback does not pipe RGBA pixels through FFmpeg or upload full CPU frames.
+
+The status reads `DXVA · D3D11 → D3D12 GPU frames` once a frame is available. Unsupported
+system-memory or non-decoder surfaces produce an error; they do not silently select CPU
+playback. Codec support depends on the Windows decoder, GPU, profile and bit depth.
+Output is 8-bit SDR; HDR tone mapping, interlaced processing and automatic compatibility
+transcoding are outside this adapter's current scope.
+
+Run the pixel/synchronization regression test on a Windows GPU with FFmpeg on `PATH`:
+
+```powershell
+cargo test -p vjay-infrastructure --lib media::windows::tests::gpu_video --locked -- --ignored --test-threads=1
+```
+
+It generates a 1080p H.264 file with B-frames, opens two independent sources, checks
+colors after scaling and repeated seeks, coalesces a seek burst, and verifies decoder
+reuse, zero CPU pixel-transfer counters, and background teardown. Its explicit pixel
+readback is test-only. This test is not run on hosted Windows CI without a native GPU.
+The Windows code and test are cross-checked with strict Clippy; GTX 1080 runtime behavior
+and before/after playback timings remain unmeasured here.
+
+For a real playback trace in PowerShell:
+
+```powershell
+$env:VJAY_FRAME_TRACE = Join-Path $PWD "windows-playback.csv"
+cargo run --release --locked -- --project sample/anime-club.vjay.json --output-window
+# Select your local videos and run playback, then close VJAY normally.
+Remove-Item Env:VJAY_FRAME_TRACE
+```
+
+Record the codec/profile, resolution, CPU and GPU alongside the trace. Inspect GPU
+engines such as Video Decode, Video Processing, Copy and 3D rather than relying on a
+single graph; [Microsoft explains the engine counters](https://devblogs.microsoft.com/directx/gpus-in-the-task-manager/).
+Low utilization alone is not a throughput measurement. CSV intervals measure CPU
+submissions, not displayed FPS; compare interval tails, CPU usage and visible dropped
+frames with the same clip, project, resolution, previews and outputs.
+
 ## Camera access on macOS
 
 The native camera bridge is built from `native/macos/capture.mm` by Cargo using the Apple
@@ -257,8 +302,9 @@ interoperability. Use Syphon on macOS.
 | Windows native previews and output windows | DX12 adapter implemented; native runtime validation requires a Windows desktop and GPU |
 | Media Device Input | macOS AVFoundation / Metal; GPU path tested with generated IOSurfaces; physical devices require local validation |
 | VideoToolbox decode and GPU scaling | Validated for supported macOS codecs |
-| Linux native presentation; Linux / Windows native GPU-decode PALs | Not implemented |
-| Portable FFmpeg decoder | CPU-based; not the selected macOS playback policy |
+| Windows GPU movie decoding | Media Foundation / DXVA and D3D11→D3D12 sharing implemented; strict cross-check only, native GPU test and performance measurements outstanding |
+| Linux native presentation and GPU-decode PAL | Not implemented |
+| Portable FFmpeg decoder | CPU-based; not the selected macOS or Windows playback policy |
 | MIDI / OSC / Link | Native and virtual-input tests exist; physical controller coverage is limited |
 | Long performances and multiple physical projectors | Not validated by headless or loopback tests |
 

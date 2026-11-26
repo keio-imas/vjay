@@ -5,6 +5,8 @@ pub mod images;
 pub mod macos;
 pub mod text_images;
 pub mod web_media;
+#[cfg(windows)]
+pub mod windows;
 use std::path::{Path, PathBuf};
 use vjay_application::{
     media::{VideoDecoder, VideoDecoderFactory},
