@@ -6,8 +6,8 @@
 <key>CFBundleDisplayName</key><string>VJAY</string>
 <key>CFBundleExecutable</key><string>vjay</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.3.3</string>
-<key>CFBundleVersion</key><string>0.3.3</string>
+<key>CFBundleShortVersionString</key><string>0.4.0</string>
+<key>CFBundleVersion</key><string>0.4.0</string>
 <key>NSCameraUsageDescription</key><string>VJAY uses the selected camera or capture device as a visual input in your patch.</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
